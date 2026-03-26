@@ -9,7 +9,7 @@ Platform for managing professional events, speakers, locations, and participant 
 
 ## Technology Stack
 - ASP.NET Core MVC
-- .NET 8
+- .NET 10
 - Entity Framework Core
 - SQL Server
 - Razor Views
