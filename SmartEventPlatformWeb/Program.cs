@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore;
+using SmartEventPlatformWeb.Data;
+
 namespace SmartEventPlatformWeb
 {
     public class Program
@@ -8,6 +11,7 @@ namespace SmartEventPlatformWeb
 
             // Add services to the container.
             builder.Services.AddControllersWithViews();
+            builder.Services.AddDbContext<SmartPlatformDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             var app = builder.Build();
 
