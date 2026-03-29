@@ -1,0 +1,67 @@
+﻿@model SmartEventPlatformWeb.ViewModels.Events.EventDetailsViewModel
+
+@{
+    ViewData["Title"] = "Event Details";
+}
+
+<h1>Event Details</h1>
+
+<div>
+    <h4>Event</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.EventName)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.EventName)
+        </dd>
+
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.Agenda)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.Agenda)
+        </dd>
+
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.EventDateTime)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.EventDateTime)
+        </dd>
+
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.DurationInMinutes)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.DurationInMinutes)
+        </dd>
+
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.RegistrationFee)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.RegistrationFee)
+        </dd>
+
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.LocationName)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.LocationName)
+        </dd>
+
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.LocationAddress)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.LocationAddress)
+        </dd>
+    </dl>
+</div>
+
+<div>
+    <a asp-action="Edit" asp-route-id="@Model.EventId">Edit</a> |
+    <a asp-action="Index">Back to List</a>
+</div>

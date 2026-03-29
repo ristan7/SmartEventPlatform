@@ -1,0 +1,71 @@
+﻿@model SmartEventPlatformWeb.ViewModels.Events.EventEditViewModel
+
+@{
+    ViewData["Title"] = "Edit Event";
+}
+
+<h1>Edit Event</h1>
+
+<h4>Event</h4>
+<hr />
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Edit">
+            <input type="hidden" asp-for="EventId" />
+
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="form-group mb-3">
+                <label asp-for="EventName" class="control-label"></label>
+                <input asp-for="EventName" class="form-control" />
+                <span asp-validation-for="EventName" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Agenda" class="control-label"></label>
+                <input asp-for="Agenda" class="form-control" />
+                <span asp-validation-for="Agenda" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="EventDateTime" class="control-label"></label>
+                <input asp-for="EventDateTime" class="form-control" />
+                <span asp-validation-for="EventDateTime" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="DurationInMinutes" class="control-label"></label>
+                <input asp-for="DurationInMinutes" class="form-control" />
+                <span asp-validation-for="DurationInMinutes" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="RegistrationFee" class="control-label"></label>
+                <input asp-for="RegistrationFee" class="form-control" />
+                <span asp-validation-for="RegistrationFee" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="LocationId" class="control-label"></label>
+                <select asp-for="LocationId" class="form-control" asp-items="Model.Locations">
+                </select>
+                <span asp-validation-for="LocationId" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}
