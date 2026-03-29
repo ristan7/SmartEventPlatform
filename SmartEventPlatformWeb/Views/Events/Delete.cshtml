@@ -1,0 +1,42 @@
+﻿@model SmartEventPlatformWeb.ViewModels.Events.EventDeleteViewModel
+
+@{
+    ViewData["Title"] = "Delete Event";
+}
+
+<h1>Delete Event</h1>
+
+<h3>Are you sure you want to delete this?</h3>
+
+<div>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-3">
+            Event Name
+        </dt>
+        <dd class="col-sm-9">
+            @Model.EventName
+        </dd>
+
+        <dt class="col-sm-3">
+            Date
+        </dt>
+        <dd class="col-sm-9">
+            @Model.EventDateTime
+        </dd>
+
+        <dt class="col-sm-3">
+            Location
+        </dt>
+        <dd class="col-sm-9">
+            @Model.LocationName
+        </dd>
+    </dl>
+
+    <form asp-action="Delete">
+        <input type="hidden" asp-for="EventId" />
+
+        <input type="submit" value="Delete" class="btn btn-danger" />
+        <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
