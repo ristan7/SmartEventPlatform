@@ -129,7 +129,7 @@ namespace SmartEventPlatformWeb.Controllers
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (! _context.Locations.Any(l => l.LocationId == vm.LocationId))
+                    if (!LocationExists(vm.LocationId))
                     {
                         return NotFound();
                     }
