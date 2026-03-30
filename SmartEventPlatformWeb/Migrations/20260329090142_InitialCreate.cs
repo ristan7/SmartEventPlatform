@@ -56,7 +56,7 @@ namespace SmartEventPlatformWeb.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Events",
+                name: "EventSpeakersParticipations",
                 columns: table => new
                 {
                     EventId = table.Column<long>(type: "bigint", nullable: false)
@@ -103,7 +103,7 @@ namespace SmartEventPlatformWeb.Migrations
                     table.ForeignKey(
                         name: "FK_EventSpeakers_Events_EventId",
                         column: x => x.EventId,
-                        principalTable: "Events",
+                        principalTable: "EventSpeakersParticipations",
                         principalColumn: "EventId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -116,7 +116,7 @@ namespace SmartEventPlatformWeb.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_Events_LocationId",
-                table: "Events",
+                table: "EventSpeakersParticipations",
                 column: "LocationId");
 
             migrationBuilder.CreateIndex(
@@ -146,7 +146,7 @@ namespace SmartEventPlatformWeb.Migrations
                 name: "EventRoles");
 
             migrationBuilder.DropTable(
-                name: "Events");
+                name: "EventSpeakersParticipations");
 
             migrationBuilder.DropTable(
                 name: "Speakers");

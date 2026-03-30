@@ -56,7 +56,7 @@ namespace SmartEventPlatformWeb.Migrations
 
                     b.HasIndex("LocationId");
 
-                    b.ToTable("Events", (string)null);
+                    b.ToTable("EventSpeakersParticipations", (string)null);
                 });
 
             modelBuilder.Entity("SmartEventPlatformWeb.Domains.EventRole", b =>
@@ -75,6 +75,28 @@ namespace SmartEventPlatformWeb.Migrations
                     b.HasKey("EventRoleId");
 
                     b.ToTable("EventRoles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            EventRoleId = 1L,
+                            Name = "Main Speaker"
+                        },
+                        new
+                        {
+                            EventRoleId = 2L,
+                            Name = "Guest Speaker"
+                        },
+                        new
+                        {
+                            EventRoleId = 3L,
+                            Name = "Moderator"
+                        },
+                        new
+                        {
+                            EventRoleId = 4L,
+                            Name = "Panelist"
+                        });
                 });
 
             modelBuilder.Entity("SmartEventPlatformWeb.Domains.EventSpeaker", b =>
@@ -176,7 +198,7 @@ namespace SmartEventPlatformWeb.Migrations
             modelBuilder.Entity("SmartEventPlatformWeb.Domains.Event", b =>
                 {
                     b.HasOne("SmartEventPlatformWeb.Domains.Location", "Location")
-                        .WithMany("Events")
+                        .WithMany("EventSpeakersParticipations")
                         .HasForeignKey("LocationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -223,7 +245,7 @@ namespace SmartEventPlatformWeb.Migrations
 
             modelBuilder.Entity("SmartEventPlatformWeb.Domains.Location", b =>
                 {
-                    b.Navigation("Events");
+                    b.Navigation("EventSpeakersParticipations");
                 });
 
             modelBuilder.Entity("SmartEventPlatformWeb.Domains.Speaker", b =>

@@ -27,6 +27,13 @@ namespace SmartEventPlatformWeb.Data
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             });
 
+            modelBuilder.Entity<EventRole>().HasData(
+                new EventRole { EventRoleId = 1, Name = "Main Speaker" },
+                new EventRole { EventRoleId = 2, Name = "Guest Speaker" },
+                new EventRole { EventRoleId = 3, Name = "Moderator" },
+                new EventRole { EventRoleId = 4, Name = "Panelist" }
+            );
+
             modelBuilder.Entity<Location>(entity =>
             {
                 entity.ToTable("Locations");

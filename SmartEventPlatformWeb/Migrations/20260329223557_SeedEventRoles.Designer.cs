@@ -12,8 +12,8 @@ using SmartEventPlatformWeb.Data;
 namespace SmartEventPlatformWeb.Migrations
 {
     [DbContext(typeof(SmartPlatformDbContext))]
-    [Migration("20260329090142_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260329223557_SeedEventRoles")]
+    partial class SeedEventRoles
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -78,6 +78,28 @@ namespace SmartEventPlatformWeb.Migrations
                     b.HasKey("EventRoleId");
 
                     b.ToTable("EventRoles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            EventRoleId = 1L,
+                            Name = "Main Speaker"
+                        },
+                        new
+                        {
+                            EventRoleId = 2L,
+                            Name = "Guest Speaker"
+                        },
+                        new
+                        {
+                            EventRoleId = 3L,
+                            Name = "Moderator"
+                        },
+                        new
+                        {
+                            EventRoleId = 4L,
+                            Name = "Panelist"
+                        });
                 });
 
             modelBuilder.Entity("SmartEventPlatformWeb.Domains.EventSpeaker", b =>

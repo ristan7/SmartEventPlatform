@@ -1,0 +1,56 @@
+@model SmartEventPlatformWeb.ViewModels.EventSpeakers.EventSpeakerCreateViewModel
+
+@{
+    ViewData["Title"] = "Create Event Speaker";
+}
+
+<h1>Create</h1>
+
+<h4>Event Speaker</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Create">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="form-group mb-3">
+                <label asp-for="EventId" class="control-label">Event</label>
+                <select asp-for="EventId" class="form-control" asp-items="Model.Events"></select>
+                <span asp-validation-for="EventId" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="SpeakerId" class="control-label">Speaker</label>
+                <select asp-for="SpeakerId" class="form-control" asp-items="Model.Speakers"></select>
+                <span asp-validation-for="SpeakerId" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="EventRoleId" class="control-label">Role</label>
+                <select asp-for="EventRoleId" class="form-control" asp-items="Model.EventRoles"></select>
+                <span asp-validation-for="EventRoleId" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Topic" class="control-label"></label>
+                <input asp-for="Topic" class="form-control" />
+                <span asp-validation-for="Topic" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Time" class="control-label"></label>
+                <input asp-for="Time" class="form-control" type="datetime-local" value="@Model.Time.ToString("yyyy-MM-ddTHH:mm")"  />
+                <span asp-validation-for="Time" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <input type="submit" value="Create" class="btn btn-primary" />
+                <a asp-action="Index" class="btn btn-secondary ms-2">Back to List</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

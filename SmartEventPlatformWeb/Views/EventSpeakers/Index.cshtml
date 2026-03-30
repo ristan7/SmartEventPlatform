@@ -1,0 +1,41 @@
+@model IEnumerable<SmartEventPlatformWeb.ViewModels.EventSpeakers.EventSpeakerListViewModel>
+
+@{
+    ViewData["Title"] = "Event Speakers";
+}
+
+<h1>Event Speakers</h1>
+
+<p>
+    <a asp-action="Create" class="btn btn-primary">Create New Entry</a>
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>@Html.DisplayNameFor(model => model.EventName)</th>
+            <th>@Html.DisplayNameFor(model => model.SpeakerName)</th>
+            <th>@Html.DisplayNameFor(model => model.RoleName)</th>
+            <th>@Html.DisplayNameFor(model => model.Topic)</th>
+            <th>@Html.DisplayNameFor(model => model.Time)</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@Html.DisplayFor(modelItem => item.EventName)</td>
+                <td>@Html.DisplayFor(modelItem => item.SpeakerName)</td>
+                <td>@Html.DisplayFor(modelItem => item.RoleName)</td>
+                <td>@Html.DisplayFor(modelItem => item.Topic)</td>
+                <td>@Html.DisplayFor(modelItem => item.Time)</td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@item.EventSpeakerId">Edit</a> |
+                    <a asp-action="Details" asp-route-id="@item.EventSpeakerId">Details</a> |
+                    <a asp-action="Delete" asp-route-id="@item.EventSpeakerId">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

@@ -39,6 +39,10 @@ namespace SmartEventPlatformWeb.Controllers
             }
 
             var speakerDetails = await _context.Speakers
+                .Include(s => s.EventSpeakers)
+                .ThenInclude(es => es.Event)
+                .Include(s => s.EventSpeakers)
+                .ThenInclude(es => es.EventRole)
                 .Where(s => s.SpeakerId == id)
                 .Select(s => new SpeakerDetailsViewModel
                 {
@@ -46,7 +50,18 @@ namespace SmartEventPlatformWeb.Controllers
                     FirstName = s.FirstName,
                     LastName = s.LastName,
                     Title = s.Title,
-                    ExpertiseAreas = s.ExpertiseAreas
+                    ExpertiseAreas = s.ExpertiseAreas,
+                    EventSpeakersParticipations = s.EventSpeakers
+                    .OrderBy(es => es.Time)
+                    .Select(es => new SpeakerEventItemViewModel
+                    {
+                        EventSpeakerId = es.EventSpeakerId,
+                        EventId = es.EventId,
+                        EventName = es.Event!.EventName,
+                        RoleName = es.EventRole!.Name,
+                        Topic = es.Topic,
+                        Time = es.Time
+                    }).ToList()
                 }).FirstOrDefaultAsync();
             
             if (speakerDetails == null)

@@ -39,6 +39,32 @@
         </dd>
     </dl>
 </div>
+
+<div>
+    <h4>Events</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Event</th>
+                <th>Role</th>
+                <th>Topic</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ev in Model.EventSpeakersParticipations)
+            {
+                <tr>
+                    <td>@ev.EventName</td>
+                    <td>@ev.RoleName</td>
+                    <td>@ev.Topic</td>
+                    <td>@ev.Time</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
 <div>
     <a asp-action="Edit" asp-route-id="@Model?.SpeakerId" class="btn btn-primary">Edit</a>
     <a asp-action="Index" class="btn btn-secondary ms-2">Back to List</a>
