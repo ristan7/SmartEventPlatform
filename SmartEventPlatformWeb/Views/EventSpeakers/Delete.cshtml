@@ -1,0 +1,35 @@
+@model SmartEventPlatformWeb.ViewModels.EventSpeakers.EventSpeakerDeleteViewModel
+
+@{
+    ViewData["Title"] = "Delete Event Speaker";
+}
+
+<h1>Delete</h1>
+
+<h3 class="text-danger">Are you sure you want to delete this?</h3>
+<div>
+    <h4>Event Speaker</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.EventName)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.EventName)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.SpeakerFullName)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.SpeakerFullName)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.RoleName)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.RoleName)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Topic)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.Topic)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Time)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.Time)</dd>
+    </dl>
+    
+    <form asp-action="Delete">
+        <input type="hidden" asp-for="EventSpeakerId" />
+        <input type="submit" value="Delete" class="btn btn-danger" />
+        <a asp-action="Index" class="btn btn-secondary ms-2">Back to List</a>
+    </form>
+</div>

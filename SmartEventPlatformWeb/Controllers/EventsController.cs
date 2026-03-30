@@ -30,7 +30,7 @@ namespace SmartEventPlatformWeb.Controllers
                     EventId = e.EventId,
                     EventName = e.EventName,
                     EventDateTime = e.EventDateTime,
-                    LocationName = e.Location.LocationName
+                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty
                 })
                 .ToListAsync();
 
@@ -46,6 +46,10 @@ namespace SmartEventPlatformWeb.Controllers
 
             var eventDetails = await _context.Events
                 .Include(e => e.Location)
+                .Include(e => e.EventSpeakers)
+                .ThenInclude(es => es.Speaker)
+                .Include(e => e.EventSpeakers)
+                .ThenInclude(es => es.EventRole)
                 .Where(e => e.EventId == id)
                 .Select(e => new EventDetailsViewModel
                 {
@@ -55,8 +59,18 @@ namespace SmartEventPlatformWeb.Controllers
                     EventDateTime = e.EventDateTime,
                     DurationInMinutes = e.DurationInMinutes,
                     RegistrationFee = e.RegistrationFee,
-                    LocationName = e.Location.LocationName,
-                    LocationAddress = e.Location.Address
+                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
+                    LocationAddress = e.Location != null ? e.Location.Address : string.Empty,
+                    Speakers = e.EventSpeakers
+                    .OrderBy(es => es.Time)
+                    .Select(es => new EventSpeakerItemViewModel
+                    {
+                        EventSpeakerId = es.EventSpeakerId,
+                        SpeakerFullName = es.Speaker!.FirstName + " " + es.Speaker.LastName,
+                        RoleName = es.EventRole!.Name,
+                        Topic = es.Topic,
+                        Time = es.Time
+                    }).ToList()
                 })
                 .FirstOrDefaultAsync();
             if (eventDetails == null)
@@ -213,7 +227,7 @@ namespace SmartEventPlatformWeb.Controllers
                     EventId = e.EventId,
                     EventName = e.EventName,
                     EventDateTime = e.EventDateTime,
-                    LocationName = e.Location.LocationName
+                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty
                 })
                 .FirstOrDefaultAsync();
             if (vm == null)
@@ -238,9 +252,5 @@ namespace SmartEventPlatformWeb.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        private bool EventExists(long id)
-        {
-            return _context.Events.Any(e => e.EventId == id);
-        }
     }
 }

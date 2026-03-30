@@ -12,5 +12,6 @@
         public string LocationName { get; set; } = string.Empty;
         public string LocationAddress { get; set; } = string.Empty;
 
+        public List<EventSpeakerItemViewModel> Speakers { get; set; } = new List<EventSpeakerItemViewModel>();
     }
 }

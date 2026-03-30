@@ -1,0 +1,32 @@
+@model SmartEventPlatformWeb.ViewModels.EventSpeakers.EventSpeakerDetailsViewModel
+
+@{
+    ViewData["Title"] = "Event Speaker Details";
+}
+
+<h1>Details</h1>
+
+<div>
+    <h4>Event Speaker</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.EventName)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.EventName)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.SpeakerFullName)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.SpeakerFullName)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.RoleName)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.RoleName)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Topic)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.Topic)</dd>
+
+        <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Time)</dt>
+        <dd class="col-sm-10">@Html.DisplayFor(model => model.Time)</dd>
+    </dl>
+</div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model?.EventSpeakerId" class="btn btn-primary">Edit</a>
+    <a asp-action="Index" class="btn btn-secondary ms-2">Back to List</a>
+</div>

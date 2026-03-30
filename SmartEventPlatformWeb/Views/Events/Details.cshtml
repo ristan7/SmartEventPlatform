@@ -62,6 +62,31 @@
 </div>
 
 <div>
+    <h4>Speakers</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Speaker</th>
+                <th>Role</th>
+                <th>Topic</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var speaker in Model.Speakers)
+            {
+                <tr>
+                    <td>@speaker.SpeakerFullName</td>
+                    <td>@speaker.RoleName</td>
+                    <td>@speaker.Topic</td>
+                    <td>@speaker.Time</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div>
     <a asp-action="Edit" asp-route-id="@Model.EventId" class="btn btn-primary">Edit</a>
     <a asp-action="Index" class="btn btn-secondary ms-2">Back to List</a>
 </div>
