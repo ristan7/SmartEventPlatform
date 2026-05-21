@@ -12,6 +12,10 @@
         public long LocationId { get; set; }
         public Location? Location { get; set; }
 
+        public long EventTypeId { get; set; }
+        public EventType? EventType { get; set; }
+
         public ICollection<EventSpeaker> EventSpeakers { get; set; } = new List<EventSpeaker>();
+        public ICollection<Registration> Registrations { get; set; } = new List<Registration>();
     }
 }

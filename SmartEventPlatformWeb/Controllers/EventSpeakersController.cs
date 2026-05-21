@@ -21,15 +21,13 @@ namespace SmartEventPlatformWeb.Controllers
             var eventSpeakers = await _context.EventSpeakers
                 .Include(es => es.Event)
                 .Include(es => es.Speaker)
-                .Include(es => es.EventRole)
                 .OrderBy(es => es.Event!.EventName)
                 .ThenBy(es => es.Time)
                 .Select(es => new EventSpeakerListViewModel
                 {
                     EventSpeakerId = es.EventSpeakerId,
-                    EventName = es.Event!= null ? es.Event.EventName : string.Empty,
-                    SpeakerName = es.Speaker!= null ? es.Speaker.FirstName + " " + es.Speaker.LastName : string.Empty,
-                    RoleName = es.EventRole!= null ? es.EventRole.Name : string.Empty,
+                    EventName = es.Event != null ? es.Event.EventName : string.Empty,
+                    SpeakerName = es.Speaker != null ? es.Speaker.FirstName + " " + es.Speaker.LastName : string.Empty,
                     Topic = es.Topic,
                     Time = es.Time,
                     EventId = es.EventId,
@@ -46,14 +44,12 @@ namespace SmartEventPlatformWeb.Controllers
             var vm = await _context.EventSpeakers
                 .Include(es => es.Event)
                 .Include(es => es.Speaker)
-                .Include(es => es.EventRole)
                 .Where(es => es.EventSpeakerId == id)
                 .Select(es => new EventSpeakerDetailsViewModel
                 {
                     EventSpeakerId = es.EventSpeakerId,
                     EventName = es.Event != null ? es.Event.EventName : string.Empty,
                     SpeakerFullName = es.Speaker != null ? es.Speaker.FirstName + " " + es.Speaker.LastName : string.Empty,
-                    RoleName = es.EventRole != null ? es.EventRole.Name : string.Empty,
                     Topic = es.Topic,
                     Time = es.Time,
                     EventId = es.EventId,
@@ -72,7 +68,6 @@ namespace SmartEventPlatformWeb.Controllers
                 Time = DateTime.Now,
                 Events = await GetEventsSelectListAsync(),
                 Speakers = await GetSpeakersSelectListAsync(),
-                EventRoles = await GetRolesSelectListAsync()
             };
 
             return View(vm);
@@ -86,14 +81,12 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 vm.Events = await GetEventsSelectListAsync();
                 vm.Speakers = await GetSpeakersSelectListAsync();
-                vm.EventRoles = await GetRolesSelectListAsync();
                 return View(vm);
             }
             var eventSpeaker = new EventSpeaker
             {
                 EventId = vm.EventId,
                 SpeakerId = vm.SpeakerId,
-                EventRoleId = vm.EventRoleId,
                 Topic = vm.Topic,
                 Time = vm.Time
             };
@@ -115,12 +108,10 @@ namespace SmartEventPlatformWeb.Controllers
                 EventSpeakerId = eventSpeaker.EventSpeakerId,
                 EventId = eventSpeaker.EventId,
                 SpeakerId = eventSpeaker.SpeakerId,
-                EventRoleId = eventSpeaker.EventRoleId,
                 Topic = eventSpeaker.Topic,
                 Time = eventSpeaker.Time,
                 Events = await GetEventsSelectListAsync(),
                 Speakers = await GetSpeakersSelectListAsync(),
-                EventRoles = await GetRolesSelectListAsync()
             };
 
             return View(vm);
@@ -136,17 +127,15 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 vm.Events = await GetEventsSelectListAsync();
                 vm.Speakers = await GetSpeakersSelectListAsync();
-                vm.EventRoles = await GetRolesSelectListAsync();
                 return View(vm);
             }
 
             var eventSpeaker = await _context.EventSpeakers.FirstOrDefaultAsync(es => es.EventSpeakerId == id);
 
-            if(eventSpeaker == null) return NotFound();
+            if (eventSpeaker == null) return NotFound();
 
             eventSpeaker.EventId = vm.EventId;
             eventSpeaker.SpeakerId = vm.SpeakerId;
-            eventSpeaker.EventRoleId = vm.EventRoleId;
             eventSpeaker.Topic = vm.Topic;
             eventSpeaker.Time = vm.Time;
 
@@ -170,14 +159,12 @@ namespace SmartEventPlatformWeb.Controllers
             var vm = await _context.EventSpeakers
                 .Include(es => es.Event)
                 .Include(es => es.Speaker)
-                .Include(es => es.EventRole)
                 .Where(es => es.EventSpeakerId == id)
                 .Select(es => new EventSpeakerDeleteViewModel
                 {
                     EventSpeakerId = es.EventSpeakerId,
                     EventName = es.Event != null ? es.Event.EventName : string.Empty,
                     SpeakerFullName = es.Speaker != null ? es.Speaker.FirstName + " " + es.Speaker.LastName : string.Empty,
-                    RoleName = es.EventRole != null ? es.EventRole.Name : string.Empty,
                     Topic = es.Topic,
                     Time = es.Time
                 }).FirstOrDefaultAsync();
@@ -223,16 +210,6 @@ namespace SmartEventPlatformWeb.Controllers
                 {
                     Value = s.SpeakerId.ToString(),
                     Text = s.FirstName + " " + s.LastName
-                }).ToListAsync();
-        }
-
-        private async Task<List<SelectListItem>> GetRolesSelectListAsync()
-        {
-            return await _context.EventRoles
-                .Select(r => new SelectListItem
-                {
-                    Value = r.EventRoleId.ToString(),
-                    Text = r.Name
                 }).ToListAsync();
         }
 

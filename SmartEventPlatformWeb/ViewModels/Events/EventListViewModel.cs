@@ -6,5 +6,6 @@
         public string EventName { get; set; } = string.Empty;
         public DateTime EventDateTime { get; set; }
         public string LocationName { get; set; } = string.Empty;
+        public string EventTypeName { get; set; } = string.Empty;
     }
 }

@@ -7,13 +7,10 @@
         public string Topic { get; set; } = string.Empty;
 
         public long EventId { get; set; }
-        public long SpeakerId { get; set; }
-        public long EventRoleId { get; set; }
-
         public Event? Event { get; set; }
-        public Speaker? Speaker { get; set; }
-        public EventRole? EventRole { get; set; }
 
+        public long SpeakerId { get; set; }
+        public Speaker? Speaker { get; set; }
 
     }
 }

@@ -58,6 +58,12 @@
         <dd class="col-sm-9">
             @Html.DisplayFor(model => model.LocationAddress)
         </dd>
+        <dt class="col-sm-3">
+            @Html.DisplayNameFor(model => model.EventTypeName)
+        </dt>
+        <dd class="col-sm-9">
+            @Html.DisplayFor(model => model.EventTypeName)
+        </dd>
     </dl>
 </div>
 
@@ -77,7 +83,6 @@
             {
                 <tr>
                     <td>@speaker.SpeakerFullName</td>
-                    <td>@speaker.RoleName</td>
                     <td>@speaker.Topic</td>
                     <td>@speaker.Time</td>
                 </tr>

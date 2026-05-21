@@ -13,31 +13,25 @@ namespace SmartEventPlatformWeb.Data
         public DbSet<Location> Locations { get; set; }
         public DbSet<Speaker> Speakers { get; set; }
         public DbSet<EventSpeaker> EventSpeakers { get; set; }
-        public DbSet<EventRole> EventRoles { get; set; }
+        public DbSet<EventType> EventTypes { get; set; }
+        public DbSet<Participant> Participants { get; set; }
+        public DbSet<Registration> Registrations { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<EventRole>(entity =>
+            modelBuilder.Entity<EventType>(entity =>
             {
-                entity.ToTable("EventRoles");
-
-                entity.HasKey(e => e.EventRoleId);
+                entity.ToTable("EventTypes");
+                entity.HasKey(e => e.EventTypeId);
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             });
-
-            modelBuilder.Entity<EventRole>().HasData(
-                new EventRole { EventRoleId = 1, Name = "Main Speaker" },
-                new EventRole { EventRoleId = 2, Name = "Guest Speaker" },
-                new EventRole { EventRoleId = 3, Name = "Moderator" },
-                new EventRole { EventRoleId = 4, Name = "Panelist" }
-            );
 
             modelBuilder.Entity<Location>(entity =>
             {
                 entity.ToTable("Locations");
-
                 entity.HasKey(e => e.LocationId);
                 entity.Property(e => e.LocationName).IsRequired().HasMaxLength(150);
                 entity.Property(e => e.Address).IsRequired().HasMaxLength(250);
@@ -47,7 +41,6 @@ namespace SmartEventPlatformWeb.Data
             modelBuilder.Entity<Speaker>(entity =>
             {
                 entity.ToTable("Speakers");
-
                 entity.HasKey(e => e.SpeakerId);
                 entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
@@ -55,10 +48,18 @@ namespace SmartEventPlatformWeb.Data
                 entity.Property(e => e.ExpertiseAreas).HasMaxLength(500);
             });
 
+            modelBuilder.Entity<Participant>(entity =>
+            {
+                entity.ToTable("Participants");
+                entity.HasKey(e => e.ParticipantId);
+                entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Email).IsRequired().HasMaxLength(200);
+            });
+
             modelBuilder.Entity<Event>(entity =>
             {
                 entity.ToTable("Events");
-
                 entity.HasKey(e => e.EventId);
                 entity.Property(e => e.EventName).IsRequired().HasMaxLength(200);
                 entity.Property(e => e.Agenda).HasMaxLength(2000);
@@ -71,17 +72,19 @@ namespace SmartEventPlatformWeb.Data
                     .HasForeignKey(e => e.LocationId)
                     .OnDelete(DeleteBehavior.Restrict);
 
+                entity.HasOne(e => e.EventType)
+                   .WithMany(et => et.Events)
+                   .HasForeignKey(e => e.EventTypeId)
+                   .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<EventSpeaker>(entity =>
             {
                 entity.ToTable("EventSpeakers");
-
                 entity.HasKey(es => es.EventSpeakerId);
-                entity.HasIndex(es => new { es.EventId, es.SpeakerId, es.Time }).IsUnique();
                 entity.Property(es => es.Time).IsRequired().HasColumnType("datetime2");
                 entity.Property(es => es.Topic).IsRequired().HasMaxLength(350);
-                
+
                 entity.HasOne(es => es.Event)
                     .WithMany(ev => ev.EventSpeakers)
                     .HasForeignKey(es => es.EventId)
@@ -92,11 +95,23 @@ namespace SmartEventPlatformWeb.Data
                     .HasForeignKey(es => es.SpeakerId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasOne(es => es.EventRole)
-                    .WithMany(e => e.EventSpeakers)
-                    .HasForeignKey(es => es.EventRoleId)
-                    .OnDelete(DeleteBehavior.Restrict);
+            });
 
+            modelBuilder.Entity<Registration>(entity =>
+            {
+                entity.ToTable("Registrations");
+                entity.HasKey(r => r.RegistrationId);
+                entity.Property(r => r.RegistrationDate).IsRequired().HasColumnType("datetime2");
+
+                entity.HasOne(r => r.Event)
+                    .WithMany(e => e.Registrations)
+                    .HasForeignKey(r => r.EventId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.Participant)
+                    .WithMany(p => p.Registrations)
+                    .HasForeignKey(r => r.ParticipantId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

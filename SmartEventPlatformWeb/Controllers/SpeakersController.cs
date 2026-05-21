@@ -42,7 +42,6 @@ namespace SmartEventPlatformWeb.Controllers
                 .Include(s => s.EventSpeakers)
                 .ThenInclude(es => es.Event)
                 .Include(s => s.EventSpeakers)
-                .ThenInclude(es => es.EventRole)
                 .Where(s => s.SpeakerId == id)
                 .Select(s => new SpeakerDetailsViewModel
                 {
@@ -58,7 +57,6 @@ namespace SmartEventPlatformWeb.Controllers
                         EventSpeakerId = es.EventSpeakerId,
                         EventId = es.EventId,
                         EventName = es.Event!.EventName,
-                        RoleName = es.EventRole!.Name,
                         Topic = es.Topic,
                         Time = es.Time
                     }).ToList()

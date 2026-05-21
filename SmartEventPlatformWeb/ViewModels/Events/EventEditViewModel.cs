@@ -13,7 +13,9 @@ namespace SmartEventPlatformWeb.ViewModels.Events
         public decimal RegistrationFee { get; set; }
 
         public long LocationId { get; set; }
+        public long EventTypeId { get; set; }
 
         public IEnumerable<SelectListItem> Locations { get; set; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> EventTypes { get; set; } = new List<SelectListItem>();
     }
 }

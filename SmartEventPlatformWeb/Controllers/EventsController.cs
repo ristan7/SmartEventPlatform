@@ -24,13 +24,15 @@ namespace SmartEventPlatformWeb.Controllers
         {
             var events = await _context.Events
                 .Include(e => e.Location)
+                .Include(e => e.EventType)
                 .OrderBy(e => e.EventDateTime)
                 .Select(e => new EventListViewModel
                 {
                     EventId = e.EventId,
                     EventName = e.EventName,
                     EventDateTime = e.EventDateTime,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty
+                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
+                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty
                 })
                 .ToListAsync();
 
@@ -46,10 +48,10 @@ namespace SmartEventPlatformWeb.Controllers
 
             var eventDetails = await _context.Events
                 .Include(e => e.Location)
+                .Include(e => e.EventType)
                 .Include(e => e.EventSpeakers)
                 .ThenInclude(es => es.Speaker)
                 .Include(e => e.EventSpeakers)
-                .ThenInclude(es => es.EventRole)
                 .Where(e => e.EventId == id)
                 .Select(e => new EventDetailsViewModel
                 {
@@ -61,13 +63,13 @@ namespace SmartEventPlatformWeb.Controllers
                     RegistrationFee = e.RegistrationFee,
                     LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
                     LocationAddress = e.Location != null ? e.Location.Address : string.Empty,
+                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
                     Speakers = e.EventSpeakers
                     .OrderBy(es => es.Time)
                     .Select(es => new EventSpeakerItemViewModel
                     {
                         EventSpeakerId = es.EventSpeakerId,
                         SpeakerFullName = es.Speaker!.FirstName + " " + es.Speaker.LastName,
-                        RoleName = es.EventRole!.Name,
                         Topic = es.Topic,
                         Time = es.Time
                     }).ToList()
@@ -91,8 +93,15 @@ namespace SmartEventPlatformWeb.Controllers
                         Value = l.LocationId.ToString(),
                         Text = l.LocationName
                     })
-                    .ToList()
+                    .ToList(),
+                EventTypes = _context.EventTypes
+                .Select(et => new SelectListItem
+                {
+                    Value = et.EventTypeId.ToString(),
+                    Text = et.Name
+                }).ToList()
             };
+
             return View(vm);
         }
 
@@ -109,7 +118,8 @@ namespace SmartEventPlatformWeb.Controllers
                     EventDateTime = vm.EventDateTime,
                     DurationInMinutes = vm.DurationInMinutes,
                     RegistrationFee = vm.RegistrationFee,
-                    LocationId = vm.LocationId
+                    LocationId = vm.LocationId,
+                    EventTypeId = vm.EventTypeId
                 };
                 _context.Events.Add(@event);
                 await _context.SaveChangesAsync();
@@ -123,7 +133,14 @@ namespace SmartEventPlatformWeb.Controllers
                     Text = l.LocationName
                 })
                 .ToList();
-            
+
+            vm.EventTypes = _context.EventTypes
+                .Select(et => new SelectListItem
+                {
+                    Value = et.EventTypeId.ToString(),
+                    Text = et.Name
+                }).ToList();
+
             return View(vm);
         }
 
@@ -148,13 +165,20 @@ namespace SmartEventPlatformWeb.Controllers
                 DurationInMinutes = @event.DurationInMinutes,
                 RegistrationFee = @event.RegistrationFee,
                 LocationId = @event.LocationId,
+                EventTypeId = @event.EventTypeId,
                 Locations = _context.Locations
                     .Select(l => new SelectListItem
                     {
                         Value = l.LocationId.ToString(),
                         Text = l.LocationName
                     })
-                    .ToList()
+                    .ToList(),
+                EventTypes = _context.EventTypes
+                .Select(et => new SelectListItem
+                {
+                    Value = et.EventTypeId.ToString(),
+                    Text = et.Name
+                }).ToList()
             };
             return View(vm);
         }
@@ -174,7 +198,7 @@ namespace SmartEventPlatformWeb.Controllers
                 {
                     var @event = await _context.Events.FindAsync(id);
 
-                    if(@event == null)
+                    if (@event == null)
                     {
                         return NotFound();
                     }
@@ -184,6 +208,7 @@ namespace SmartEventPlatformWeb.Controllers
                     @event.DurationInMinutes = vm.DurationInMinutes;
                     @event.RegistrationFee = vm.RegistrationFee;
                     @event.LocationId = vm.LocationId;
+                    @event.EventTypeId = vm.EventTypeId;
 
                     _context.Update(@event);
                     await _context.SaveChangesAsync();
@@ -208,7 +233,7 @@ namespace SmartEventPlatformWeb.Controllers
                         Text = l.LocationName
                     })
                     .ToList();
-            
+
             return View(vm);
         }
 
