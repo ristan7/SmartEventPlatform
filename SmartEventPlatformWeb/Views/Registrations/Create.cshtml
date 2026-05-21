@@ -1,0 +1,29 @@
+@model SmartEventPlatformWeb.ViewModels.Registrations.RegistrationCreateViewModel
+
+@{
+    ViewData["Title"] = "Create Registration";
+}
+
+<h1>Create Registration</h1>
+
+<form asp-action="Create" method="post">
+    <div class="form-group">
+        <label asp-for="EventId" class="control-label">Event</label>
+        <select asp-for="EventId" asp-items="Model.Events" class="form-control"></select>
+        <span asp-validation-for="EventId" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="ParticipantId" class="control-label">Participant</label>
+        <select asp-for="ParticipantId" asp-items="Model.Participants" class="form-control"></select>
+        <span asp-validation-for="ParticipantId" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="RegistrationDate" class="control-label"></label>
+        <input asp-for="RegistrationDate" class="form-control" />
+        <span asp-validation-for="RegistrationDate" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <input type="submit" value="Create" class="btn btn-primary" />
+        <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+    </div>
+</form>

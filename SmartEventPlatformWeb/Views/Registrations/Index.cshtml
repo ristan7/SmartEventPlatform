@@ -1,0 +1,35 @@
+@model IEnumerable<SmartEventPlatformWeb.ViewModels.Registrations.RegistrationListViewModel>
+
+@{
+    ViewData["Title"] = "Registrations";
+}
+
+<h1>Registrations</h1>
+
+<p>
+    <a class="btn btn-primary" asp-action="Create">Create New</a>
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Event</th>
+            <th>Participant</th>
+            <th>Registration Date</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model)
+{
+        <tr>
+            <td>@item.EventName</td>
+            <td>@item.ParticipantFullName</td>
+            <td>@item.RegistrationDate.ToString("g")</td>
+            <td>
+                <a asp-action="Delete" asp-route-id="@item.RegistrationId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>

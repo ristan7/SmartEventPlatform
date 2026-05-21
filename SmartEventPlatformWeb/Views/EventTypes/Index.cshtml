@@ -1,0 +1,32 @@
+@model IEnumerable<SmartEventPlatformWeb.ViewModels.EventTypes.EventTypeListViewModel>
+
+@{
+    ViewData["Title"] = "Event Types";
+}
+
+<h1>Event Types</h1>
+
+<p>
+    <a class="btn btn-primary" asp-action="Create">Create New</a>
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model)
+{
+        <tr>
+            <td>@item.Name</td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.EventTypeId">Edit</a> |
+                <a asp-action="Delete" asp-route-id="@item.EventTypeId">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>
