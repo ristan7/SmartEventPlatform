@@ -284,5 +284,37 @@ namespace SmartEventPlatformWeb.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        public async Task<IActionResult> Available()
+        {
+            var now = DateTime.Now;
+
+            var events = await _context.Events
+                .Include(e => e.Location)
+                .Include(e => e.Registrations)
+                .Include(e => e.EventSpeakers)
+                    .ThenInclude(es => es.Speaker)
+                .Where(e => e.EventDateTime >= now)
+                .Select(e => new AvailableEventViewModel
+                {
+                    EventId = e.EventId,
+                    EventName = e.EventName,
+                    Agenda = e.Agenda,
+                    EventDateTime = e.EventDateTime,
+                    DurationInMinutes = e.DurationInMinutes,
+                    RegistrationFee = e.RegistrationFee,
+                    LocationName = e.Location.LocationName,
+                    Capacity = e.Location.Capacity,
+                    RegisteredCount = e.Registrations.Count,
+                    Speakers = e.EventSpeakers
+                        .Select(es => es.Speaker.FirstName + " " + es.Speaker.LastName)
+                        .ToList()
+                })
+                .Where(e => e.AvailableSeats > 0)
+                .OrderBy(e => e.EventDateTime)
+                .ToListAsync();
+
+            return View(events);
+        }
+
     }
 }

@@ -36,17 +36,21 @@ namespace SmartEventPlatformWeb.Controllers
             return View(regs);
         }
 
-        public IActionResult Create()
+        public IActionResult Create(long? eventId)
         {
             var vm = new RegistrationCreateViewModel
             {
+                RegistrationDate = DateTime.Now,
+
                 Events = _context.Events
                     .Select(e => new SelectListItem
                     {
                         Value = e.EventId.ToString(),
-                        Text = e.EventName
+                        Text = e.EventName,
+                        Selected = eventId.HasValue && e.EventId == eventId.Value
                     })
                     .ToList(),
+
                 Participants = _context.Participants
                     .Select(p => new SelectListItem
                     {
@@ -55,6 +59,12 @@ namespace SmartEventPlatformWeb.Controllers
                     })
                     .ToList()
             };
+
+            if (eventId.HasValue)
+            {
+                vm.EventId = eventId.Value;
+            }
+
             return View(vm);
         }
 
