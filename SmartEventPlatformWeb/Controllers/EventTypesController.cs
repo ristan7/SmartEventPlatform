@@ -31,6 +31,30 @@ namespace SmartEventPlatformWeb.Controllers
             return View(types);
         }
 
+        public async Task<IActionResult> Details(long? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var vm = await _context.EventTypes
+                .Where(e => e.EventTypeId == id)
+                .Select(e => new EventTypeDetailsViewModel
+                {
+                    EventTypeId = e.EventTypeId,
+                    Name = e.Name
+                })
+                .FirstOrDefaultAsync();
+
+            if (vm == null)
+            {
+                return NotFound();
+            }
+
+            return View(vm);
+        }
+
         public IActionResult Create()
         {
             return View(new EventTypeCreateViewModel());

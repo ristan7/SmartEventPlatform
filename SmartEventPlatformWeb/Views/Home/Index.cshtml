@@ -1,36 +1,118 @@
-﻿@{
-    ViewData["Title"] = "Home";
+@{
+    ViewData["Title"] = "Smart Event Platform";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Smart Event Platform</h1>
-    <p class="lead">Manage events, locations and speakers</p>
-</div>
+<div class="container py-5">
 
-<hr />
-
-<div class="row mt-4">
-    <div class="col-md-3 text-center">
-        <h3>Events</h3>
-        <p>Manage all events</p>
-        <a class="btn btn-primary" asp-controller="Events" asp-action="Index">Go to Events</a>
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold">Smart Event Platform</h1>
+        <p class="lead text-muted">
+            Platform for managing professional events, speakers, locations, participants and registrations.
+        </p>
+        <a class="btn btn-primary btn-lg mt-3" asp-controller="Events" asp-action="Index">
+            View Events
+        </a>
     </div>
 
-    <div class="col-md-3 text-center">
-        <h3>Locations</h3>
-        <p>Manage locations</p>
-        <a class="btn btn-secondary" asp-controller="Locations" asp-action="Index">Go to Locations</a>
+    <div class="row mb-5">
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">1. Event Types</h5>
+                    <p class="card-text text-muted">
+                        Define categories such as conferences, seminars, workshops and lectures.
+                    </p>
+                    <a class="btn btn-outline-dark" asp-controller="EventTypes" asp-action="Index">
+                        Manage Event Types
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">2. Locations</h5>
+                    <p class="card-text text-muted">
+                        Add locations, addresses and maximum participant capacity.
+                    </p>
+                    <a class="btn btn-outline-secondary" asp-controller="Locations" asp-action="Index">
+                        Manage Locations
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">3. Speakers</h5>
+                    <p class="card-text text-muted">
+                        Add speakers, their titles and areas of expertise.
+                    </p>
+                    <a class="btn btn-outline-success" asp-controller="Speakers" asp-action="Index">
+                        Manage Speakers
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">4. Events</h5>
+                    <p class="card-text text-muted">
+                        Create and edit events with agenda, date, duration, fee and location.
+                    </p>
+                    <a class="btn btn-outline-primary" asp-controller="Events" asp-action="Index">
+                        Manage Events
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="col-md-3 text-center">
-        <h3>Speakers</h3>
-        <p>Manage speakers</p>
-        <a class="btn btn-success" asp-controller="Speakers" asp-action="Index">Go to Speakers</a>
-    </div>
+    <div class="row mb-5">
+        <div class="col-md-4">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">5. Event Speakers</h5>
+                    <p class="card-text text-muted">
+                        Assign speakers to events and define their topics and presentation time.
+                    </p>
+                    <a class="btn btn-outline-info" asp-controller="EventSpeakers" asp-action="Index">
+                        Manage Event Speakers
+                    </a>
+                </div>
+            </div>
+        </div>
 
-    <div class="col-md-3 text-center">
-        <h3>Event Speakers</h3>
-        <p>Manage event speakers</p>
-        <a class="btn btn-info" asp-controller="EventSpeakers" asp-action="Index">Go to Event Speakers</a>
+        <div class="col-md-4">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">6. Participants</h5>
+                    <p class="card-text text-muted">
+                        Add and manage participants who can register for professional events.
+                    </p>
+                    <a class="btn btn-outline-warning" asp-controller="Participants" asp-action="Index">
+                        Manage Participants
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card text-center shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">7. Registrations</h5>
+                    <p class="card-text text-muted">
+                        Register participants for events and keep track of event applications.
+                    </p>
+                    <a class="btn btn-outline-danger" asp-controller="Registrations" asp-action="Index">
+                        Manage Registrations
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 </div>

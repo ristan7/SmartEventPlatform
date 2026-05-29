@@ -1,0 +1,25 @@
+﻿@model SmartEventPlatformWeb.ViewModels.EventTypes.EventTypeDetailsViewModel
+
+@{
+    ViewData["Title"] = "Event Type Details";
+}
+
+<h1>Details</h1>
+
+<div>
+    <h4>Event Type</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Name)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Name)
+        </dd>
+    </dl>
+</div>
+
+<div>
+    <a asp-action="Edit" asp-route-id="@Model.EventTypeId" class="btn btn-primary">Edit</a>
+    <a asp-action="Index" class="btn btn-secondary ms-2">Back to List</a>
+</div>

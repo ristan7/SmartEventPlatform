@@ -29,6 +29,32 @@ namespace SmartEventPlatformWeb.Controllers
             return View(part);
         }
 
+        public async Task<IActionResult> Details(long? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var vm = await _context.Participants
+                .Where(p => p.ParticipantId == id)
+                .Select(p => new ParticipantDetailsViewModel
+                {
+                    ParticipantId = p.ParticipantId,
+                    FirstName = p.FirstName,
+                    LastName = p.LastName,
+                    Email = p.Email
+                })
+                .FirstOrDefaultAsync();
+
+            if (vm == null)
+            {
+                return NotFound();
+            }
+
+            return View(vm);
+        }
+
         public IActionResult Create() => View(new ParticipantCreateViewModel());
 
         [HttpPost]

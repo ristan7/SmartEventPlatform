@@ -22,10 +22,11 @@
 {
         <tr>
             <td>@item.Name</td>
-            <td>
-                <a asp-action="Edit" asp-route-id="@item.EventTypeId">Edit</a> |
-                <a asp-action="Delete" asp-route-id="@item.EventTypeId">Delete</a>
-            </td>
+                <td>
+                    <a asp-action="Details" asp-route-id="@item.EventTypeId">Details</a> |
+                    <a asp-action="Edit" asp-route-id="@item.EventTypeId">Edit</a> |
+                    <a asp-action="Delete" asp-route-id="@item.EventTypeId">Delete</a>
+                </td>
         </tr>
 }
     </tbody>

@@ -234,6 +234,13 @@ namespace SmartEventPlatformWeb.Controllers
                     })
                     .ToList();
 
+            vm.EventTypes = _context.EventTypes
+                    .Select(et => new SelectListItem
+                    {
+                        Value = et.EventTypeId.ToString(),
+                        Text = et.Name
+                    }).ToList();
+
             return View(vm);
         }
 

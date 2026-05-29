@@ -26,9 +26,11 @@
             <td>@item.EventName</td>
             <td>@item.ParticipantFullName</td>
             <td>@item.RegistrationDate.ToString("g")</td>
-            <td>
-                <a asp-action="Delete" asp-route-id="@item.RegistrationId">Delete</a>
-            </td>
+                <td>
+                    <a asp-action="Details" asp-route-id="@item.RegistrationId">Details</a> |
+                    <a asp-action="Edit" asp-route-id="@item.RegistrationId">Edit</a> |
+                    <a asp-action="Delete" asp-route-id="@item.RegistrationId">Delete</a>
+                </td>
         </tr>
 }
     </tbody>

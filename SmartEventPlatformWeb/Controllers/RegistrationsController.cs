@@ -93,6 +93,123 @@ namespace SmartEventPlatformWeb.Controllers
             return View(vm);
         }
 
+        public async Task<IActionResult> Details(long? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var vm = await _context.Registrations
+                .Include(r => r.Event)
+                .Include(r => r.Participant)
+                .Where(r => r.RegistrationId == id)
+                .Select(r => new RegistrationDetailsViewModel
+                {
+                    RegistrationId = r.RegistrationId,
+                    EventName = r.Event != null ? r.Event.EventName : string.Empty,
+                    ParticipantFullName = r.Participant != null
+                        ? r.Participant.FirstName + " " + r.Participant.LastName
+                        : string.Empty,
+                    RegistrationDate = r.RegistrationDate
+                })
+                .FirstOrDefaultAsync();
+
+            if (vm == null)
+            {
+                return NotFound();
+            }
+
+            return View(vm);
+        }
+
+        public async Task<IActionResult> Edit(long? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var registration = await _context.Registrations
+                .FirstOrDefaultAsync(r => r.RegistrationId == id);
+
+            if (registration == null)
+            {
+                return NotFound();
+            }
+
+            var vm = new RegistrationEditViewModel
+            {
+                RegistrationId = registration.RegistrationId,
+                EventId = registration.EventId,
+                ParticipantId = registration.ParticipantId,
+                RegistrationDate = registration.RegistrationDate,
+                Events = _context.Events
+                    .Select(e => new SelectListItem
+                    {
+                        Value = e.EventId.ToString(),
+                        Text = e.EventName
+                    })
+                    .ToList(),
+                Participants = _context.Participants
+                    .Select(p => new SelectListItem
+                    {
+                        Value = p.ParticipantId.ToString(),
+                        Text = p.FirstName + " " + p.LastName
+                    })
+                    .ToList()
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(long id, RegistrationEditViewModel vm)
+        {
+            if (id != vm.RegistrationId)
+            {
+                return NotFound();
+            }
+
+            if (ModelState.IsValid)
+            {
+                var registration = await _context.Registrations
+                    .FirstOrDefaultAsync(r => r.RegistrationId == id);
+
+                if (registration == null)
+                {
+                    return NotFound();
+                }
+
+                registration.EventId = vm.EventId;
+                registration.ParticipantId = vm.ParticipantId;
+                registration.RegistrationDate = vm.RegistrationDate;
+
+                await _context.SaveChangesAsync();
+
+                return RedirectToAction(nameof(Index));
+            }
+
+            vm.Events = _context.Events
+                .Select(e => new SelectListItem
+                {
+                    Value = e.EventId.ToString(),
+                    Text = e.EventName
+                })
+                .ToList();
+
+            vm.Participants = _context.Participants
+                .Select(p => new SelectListItem
+                {
+                    Value = p.ParticipantId.ToString(),
+                    Text = p.FirstName + " " + p.LastName
+                })
+                .ToList();
+
+            return View(vm);
+        }
+
         public async Task<IActionResult> Delete(long? id)
         {
             if (id == null)
@@ -108,7 +225,8 @@ namespace SmartEventPlatformWeb.Controllers
                 {
                     RegistrationId = r.RegistrationId,
                     EventName = r.Event != null ? r.Event.EventName : string.Empty,
-                    ParticipantFullName = r.Participant != null ? r.Participant.FirstName + " " + r.Participant.LastName : string.Empty
+                    ParticipantFullName = r.Participant != null ? r.Participant.FirstName + " " + r.Participant.LastName : string.Empty,
+                    RegistrationDate = r.RegistrationDate
                 })
                 .FirstOrDefaultAsync();
 
