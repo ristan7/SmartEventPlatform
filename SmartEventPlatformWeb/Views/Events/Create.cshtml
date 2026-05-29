@@ -15,7 +15,7 @@
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
             <div class="form-group mb-3">
-                <label asp-for="EventName" class="control-label"></label>
+                <label asp-for="EventName" class="control-label">Event Name</label>
                 <input asp-for="EventName" class="form-control" />
                 <span asp-validation-for="EventName" class="text-danger"></span>
             </div>
@@ -27,25 +27,25 @@
             </div>
 
             <div class="form-group mb-3">
-                <label asp-for="EventDateTime" class="control-label"></label>
+                <label asp-for="EventDateTime" class="control-label">Event Date and Time</label>
                 <input asp-for="EventDateTime" class="form-control" />
                 <span asp-validation-for="EventDateTime" class="text-danger"></span>
             </div>
 
             <div class="form-group mb-3">
-                <label asp-for="DurationInMinutes" class="control-label"></label>
+                <label asp-for="DurationInMinutes" class="control-label">Duration (minutes)</label>
                 <input asp-for="DurationInMinutes" class="form-control" />
                 <span asp-validation-for="DurationInMinutes" class="text-danger"></span>
             </div>
 
             <div class="form-group mb-3">
-                <label asp-for="RegistrationFee" class="control-label"></label>
+                <label asp-for="RegistrationFee" class="control-label">Registration Fee</label>
                 <input asp-for="RegistrationFee" class="form-control" />
                 <span asp-validation-for="RegistrationFee" class="text-danger"></span>
             </div>
 
             <div class="form-group mb-3">
-                <label asp-for="LocationId" class="control-label"></label>
+                <label asp-for="LocationId" class="control-label">Location</label>
                 <select asp-for="LocationId" class="form-control" asp-items="Model.Locations">
                     <option value="">-- Select Location --</option>
                 </select>

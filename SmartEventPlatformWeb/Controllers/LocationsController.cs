@@ -173,13 +173,34 @@ namespace SmartEventPlatformWeb.Controllers
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
             var location = await _context.Locations.FindAsync(id);
-            if (location != null)
+
+            if (location == null)
+            {
+                return NotFound();
+            }
+
+            try
             {
                 _context.Locations.Remove(location);
                 await _context.SaveChangesAsync();
+
+                return RedirectToAction(nameof(Index));
             }
-            
-            return RedirectToAction(nameof(Index));
+            catch (DbUpdateException)
+            {
+                ModelState.AddModelError(string.Empty,
+                    "This location cannot be deleted because it is used by one or more events.");
+
+                var vm = new LocationDeleteViewModel
+                {
+                    LocationId = location.LocationId,
+                    LocationName = location.LocationName,
+                    Address = location.Address,
+                    Capacity = location.Capacity
+                };
+
+                return View("Delete", vm);
+            }
         }
 
         private bool LocationExists(long id)

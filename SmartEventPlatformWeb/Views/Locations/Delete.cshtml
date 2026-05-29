@@ -35,9 +35,10 @@
     </dl>
 
     <form asp-action="Delete">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
         <input type="hidden" asp-for="LocationId" />
-
         <input type="submit" value="Delete" class="btn btn-danger" />
         <a asp-action="Index" class="btn btn-secondary ms-2">Back to List</a>
+        
     </form>
 </div>

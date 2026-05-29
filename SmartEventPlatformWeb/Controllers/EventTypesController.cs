@@ -169,13 +169,33 @@ namespace SmartEventPlatformWeb.Controllers
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
             var @event = await _context.EventTypes.FindAsync(id);
-            if (@event != null)
+
+            if (@event == null)
+            {
+                return NotFound();
+            }
+
+            try
             {
                 _context.EventTypes.Remove(@event);
                 await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            catch (DbUpdateException)
+            {
+                ModelState.AddModelError(string.Empty,
+        "This event type cannot be deleted because it is used by one or more events.");
+
+                var vm = new EventTypeDeleteViewModel
+                {
+                    EventTypeId = @event.EventTypeId,
+                    Name = @event.Name
+                };
+
+                return View("Delete", vm);
             }
 
-            return RedirectToAction(nameof(Index));
+
         }
     }
 }

@@ -83,6 +83,20 @@ namespace SmartEventPlatformWeb.Controllers
                 vm.Speakers = await GetSpeakersSelectListAsync();
                 return View(vm);
             }
+
+            var isTimeValid = await IsSpeakerTimeInsideEventAsync(vm.EventId, vm.Time);
+
+            if (!isTimeValid)
+            {
+                ModelState.AddModelError(nameof(vm.Time),
+                    "Speaker time must be within the selected event duration.");
+
+                vm.Events = await GetEventsSelectListAsync();
+                vm.Speakers = await GetSpeakersSelectListAsync();
+
+                return View(vm);
+            }
+
             var eventSpeaker = new EventSpeaker
             {
                 EventId = vm.EventId,
@@ -127,6 +141,19 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 vm.Events = await GetEventsSelectListAsync();
                 vm.Speakers = await GetSpeakersSelectListAsync();
+                return View(vm);
+            }
+
+            var isTimeValid = await IsSpeakerTimeInsideEventAsync(vm.EventId, vm.Time);
+
+            if (!isTimeValid)
+            {
+                ModelState.AddModelError(nameof(vm.Time),
+                    "Speaker time must be within the selected event duration.");
+
+                vm.Events = await GetEventsSelectListAsync();
+                vm.Speakers = await GetSpeakersSelectListAsync();
+
                 return View(vm);
             }
 
@@ -211,6 +238,22 @@ namespace SmartEventPlatformWeb.Controllers
                     Value = s.SpeakerId.ToString(),
                     Text = s.FirstName + " " + s.LastName
                 }).ToListAsync();
+        }
+
+        private async Task<bool> IsSpeakerTimeInsideEventAsync(long eventId, DateTime speakerTime)
+        {
+            var selectedEvent = await _context.Events
+                .FirstOrDefaultAsync(e => e.EventId == eventId);
+
+            if (selectedEvent == null)
+            {
+                return false;
+            }
+
+            var eventStart = selectedEvent.EventDateTime;
+            var eventEnd = selectedEvent.EventDateTime.AddMinutes(selectedEvent.DurationInMinutes);
+
+            return speakerTime >= eventStart && speakerTime <= eventEnd;
         }
 
     }

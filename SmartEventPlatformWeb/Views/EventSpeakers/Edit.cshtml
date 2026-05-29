@@ -16,13 +16,17 @@
 
             <div class="form-group mb-3">
                 <label asp-for="EventId" class="control-label">Event</label>
-                <select asp-for="EventId" class="form-control" asp-items="Model.Events"></select>
+                <select asp-for="EventId" class="form-control" asp-items="Model.Events">
+                    <option value="0">-- Select event --</option>
+                </select>
                 <span asp-validation-for="EventId" class="text-danger"></span>
             </div>
 
             <div class="form-group mb-3">
                 <label asp-for="SpeakerId" class="control-label">Speaker</label>
-                <select asp-for="SpeakerId" class="form-control" asp-items="Model.Speakers"></select>
+                <select asp-for="SpeakerId" class="form-control" asp-items="Model.Speakers">
+                    <option value="0">-- Select speaker --</option>
+                </select>
                 <span asp-validation-for="SpeakerId" class="text-danger"></span>
             </div>
 
