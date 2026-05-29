@@ -112,6 +112,8 @@ namespace SmartEventPlatformWeb.Data
                     .WithMany(p => p.Registrations)
                     .HasForeignKey(r => r.ParticipantId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(r => new { r.EventId, r.ParticipantId }).IsUnique();
             });
         }
     }
