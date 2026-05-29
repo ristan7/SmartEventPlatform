@@ -64,14 +64,78 @@ namespace SmartEventPlatformWeb.Controllers
         {
             if (ModelState.IsValid)
             {
+                var alreadyRegistered = await _context.Registrations
+                    .AnyAsync(r => r.EventId == vm.EventId && r.ParticipantId == vm.ParticipantId);
+
+                if (alreadyRegistered)
+                {
+                    ModelState.AddModelError(string.Empty, "This participant is already registered for the selected event.");
+
+                    vm.Events = _context.Events
+                        .Select(e => new SelectListItem
+                        {
+                            Value = e.EventId.ToString(),
+                            Text = e.EventName
+                        })
+                        .ToList();
+
+                    vm.Participants = _context.Participants
+                        .Select(p => new SelectListItem
+                        {
+                            Value = p.ParticipantId.ToString(),
+                            Text = p.FirstName + " " + p.LastName
+                        })
+                        .ToList();
+
+                    return View(vm);
+                }
+
+                var selectedEvent = await _context.Events
+                    .Include(e => e.Location)
+                    .FirstOrDefaultAsync(e => e.EventId == vm.EventId);
+
+                if (selectedEvent == null)
+                {
+                    return NotFound();
+                }
+
+                var currentRegistrationCount = await _context.Registrations
+                    .CountAsync(r => r.EventId == vm.EventId);
+
+                if (selectedEvent.Location != null &&
+                    currentRegistrationCount >= selectedEvent.Location.Capacity)
+                {
+                    ModelState.AddModelError(string.Empty, "Registration is not possible because the event location capacity has been reached.");
+
+                    vm.Events = _context.Events
+                        .Select(e => new SelectListItem
+                        {
+                            Value = e.EventId.ToString(),
+                            Text = e.EventName
+                        })
+                        .ToList();
+
+                    vm.Participants = _context.Participants
+                        .Select(p => new SelectListItem
+                        {
+                            Value = p.ParticipantId.ToString(),
+                            Text = p.FirstName + " " + p.LastName
+                        })
+                        .ToList();
+
+                    return View(vm);
+                }
+
                 var @event = new Registration
                 {
                     EventId = vm.EventId,
                     ParticipantId = vm.ParticipantId,
                     RegistrationDate = vm.RegistrationDate
                 };
+
                 _context.Registrations.Add(@event);
                 await _context.SaveChangesAsync();
+
                 return RedirectToAction(nameof(Index));
             }
 
@@ -82,6 +146,7 @@ namespace SmartEventPlatformWeb.Controllers
                     Text = e.EventName
                 })
                 .ToList();
+
             vm.Participants = _context.Participants
                 .Select(p => new SelectListItem
                 {
@@ -174,6 +239,73 @@ namespace SmartEventPlatformWeb.Controllers
 
             if (ModelState.IsValid)
             {
+                var duplicateRegistration = await _context.Registrations
+                    .AnyAsync(r =>
+                        r.RegistrationId != vm.RegistrationId &&
+                        r.EventId == vm.EventId &&
+                        r.ParticipantId == vm.ParticipantId);
+
+                if (duplicateRegistration)
+                {
+                    ModelState.AddModelError(string.Empty, "This participant is already registered for the selected event.");
+
+                    vm.Events = _context.Events
+                        .Select(e => new SelectListItem
+                        {
+                            Value = e.EventId.ToString(),
+                            Text = e.EventName
+                        })
+                        .ToList();
+
+                    vm.Participants = _context.Participants
+                        .Select(p => new SelectListItem
+                        {
+                            Value = p.ParticipantId.ToString(),
+                            Text = p.FirstName + " " + p.LastName
+                        })
+                        .ToList();
+
+                    return View(vm);
+                }
+
+                var selectedEvent = await _context.Events
+                    .Include(e => e.Location)
+                    .FirstOrDefaultAsync(e => e.EventId == vm.EventId);
+
+                if (selectedEvent == null)
+                {
+                    return NotFound();
+                }
+
+                var currentRegistrationCount = await _context.Registrations
+                    .CountAsync(r =>
+                        r.EventId == vm.EventId &&
+                        r.RegistrationId != vm.RegistrationId);
+
+                if (selectedEvent.Location != null &&
+                    currentRegistrationCount >= selectedEvent.Location.Capacity)
+                {
+                    ModelState.AddModelError(string.Empty, "Registration is not possible because the event location capacity has been reached.");
+
+                    vm.Events = _context.Events
+                        .Select(e => new SelectListItem
+                        {
+                            Value = e.EventId.ToString(),
+                            Text = e.EventName
+                        })
+                        .ToList();
+
+                    vm.Participants = _context.Participants
+                        .Select(p => new SelectListItem
+                        {
+                            Value = p.ParticipantId.ToString(),
+                            Text = p.FirstName + " " + p.LastName
+                        })
+                        .ToList();
+
+                    return View(vm);
+                }
+
                 var registration = await _context.Registrations
                     .FirstOrDefaultAsync(r => r.RegistrationId == id);
 
