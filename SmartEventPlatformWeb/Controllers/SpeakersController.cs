@@ -193,18 +193,64 @@ namespace SmartEventPlatformWeb.Controllers
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
             var speaker = await _context.Speakers.FindAsync(id);
-            if (speaker != null)
+
+            if (speaker == null)
+            {
+                return NotFound();
+            }
+
+            if (await SpeakerHasDependenciesAsync(id))
+            {
+                return ReturnSpeakerDeleteViewWithError(
+                    speaker,
+                    "This speaker cannot be deleted because they are assigned to one or more events.");
+            }
+
+            try
             {
                 _context.Speakers.Remove(speaker);
                 await _context.SaveChangesAsync();
-            }
 
-            return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Index));
+            }
+            catch (DbUpdateException)
+            {
+                return ReturnSpeakerDeleteViewWithError(
+                    speaker,
+                    "This speaker cannot be deleted because they are used by other records.");
+            }
         }
 
         private bool SpeakerExists(long id)
         {
             return _context.Speakers.Any(s => s.SpeakerId == id);
+        }
+
+        private async Task<bool> SpeakerHasDependenciesAsync(long speakerId)
+        {
+            return await _context.EventSpeakers
+                .AnyAsync(es => es.SpeakerId == speakerId);
+        }
+
+        private static SpeakerDeleteViewModel MapToDeleteViewModel(Speaker speaker)
+        {
+            return new SpeakerDeleteViewModel
+            {
+                SpeakerId = speaker.SpeakerId,
+                FirstName = speaker.FirstName,
+                LastName = speaker.LastName,
+                Title = speaker.Title,
+                ExpertiseAreas = speaker.ExpertiseAreas
+            };
+        }
+
+        private IActionResult ReturnSpeakerDeleteViewWithError(Speaker speaker, string errorMessage)
+        {
+            ModelState.AddModelError(string.Empty, errorMessage);
+
+            var vm = MapToDeleteViewModel(speaker);
+
+            return View("Delete", vm);
         }
     }
 }

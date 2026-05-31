@@ -179,6 +179,13 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
+            if (await LocationHasDependenciesAsync(id))
+            {
+                return ReturnLocationDeleteViewWithError(
+                    location,
+                    "This location cannot be deleted because it is used by one or more events.");
+            }
+
             try
             {
                 _context.Locations.Remove(location);
@@ -188,24 +195,41 @@ namespace SmartEventPlatformWeb.Controllers
             }
             catch (DbUpdateException)
             {
-                ModelState.AddModelError(string.Empty,
+                return ReturnLocationDeleteViewWithError(
+                    location,
                     "This location cannot be deleted because it is used by one or more events.");
-
-                var vm = new LocationDeleteViewModel
-                {
-                    LocationId = location.LocationId,
-                    LocationName = location.LocationName,
-                    Address = location.Address,
-                    Capacity = location.Capacity
-                };
-
-                return View("Delete", vm);
             }
         }
 
         private bool LocationExists(long id)
         {
             return _context.Locations.Any(l => l.LocationId == id);
+        }
+
+        private async Task<bool> LocationHasDependenciesAsync(long locationId)
+        {
+            return await _context.Events
+                .AnyAsync(e => e.LocationId == locationId);
+        }
+
+        private static LocationDeleteViewModel MapToDeleteViewModel(Location location)
+        {
+            return new LocationDeleteViewModel
+            {
+                LocationId = location.LocationId,
+                LocationName = location.LocationName,
+                Address = location.Address,
+                Capacity = location.Capacity
+            };
+        }
+
+        private IActionResult ReturnLocationDeleteViewWithError(Location location, string errorMessage)
+        {
+            ModelState.AddModelError(string.Empty, errorMessage);
+
+            var vm = MapToDeleteViewModel(location);
+
+            return View("Delete", vm);
         }
     }
 }

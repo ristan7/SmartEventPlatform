@@ -172,17 +172,63 @@ namespace SmartEventPlatformWeb.Controllers
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
             var participant = await _context.Participants.FindAsync(id);
-            if (participant != null)
+
+            if (participant == null)
+            {
+                return NotFound();
+            }
+
+            if (await ParticipantHasDependenciesAsync(id))
+            {
+                return ReturnParticipantDeleteViewWithError(
+                    participant,
+                    "This participant cannot be deleted because they have one or more event registrations.");
+            }
+
+            try
             {
                 _context.Participants.Remove(participant);
                 await _context.SaveChangesAsync();
+
+                return RedirectToAction(nameof(Index));
             }
-            return RedirectToAction(nameof(Index));
+            catch (DbUpdateException)
+            {
+                return ReturnParticipantDeleteViewWithError(
+                    participant,
+                    "This participant cannot be deleted because they are used by other records.");
+            }
         }
 
         private bool ParticipantExists(long id)
         {
             return _context.Participants.Any(p => p.ParticipantId == id);
+        }
+
+        private async Task<bool> ParticipantHasDependenciesAsync(long participantId)
+        {
+            return await _context.Registrations
+                .AnyAsync(r => r.ParticipantId == participantId);
+        }
+
+        private static ParticipantDeleteViewModel MapToDeleteViewModel(Participant participant)
+        {
+            return new ParticipantDeleteViewModel
+            {
+                ParticipantId = participant.ParticipantId,
+                FirstName = participant.FirstName,
+                LastName = participant.LastName,
+                Email = participant.Email
+            };
+        }
+
+        private IActionResult ReturnParticipantDeleteViewWithError(Participant participant, string errorMessage)
+        {
+            ModelState.AddModelError(string.Empty, errorMessage);
+
+            var vm = MapToDeleteViewModel(participant);
+
+            return View("Delete", vm);
         }
     }
 }

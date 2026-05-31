@@ -175,30 +175,56 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return NotFound();
             }
+
+            if (await EventTypeHasDependenciesAsync(id))
+            {
+                return ReturnEventTypeDeleteViewWithError(
+                    eventType,
+                    "This event type cannot be deleted because it is used by one or more events.");
+            }
+
             try
             {
                 _context.EventTypes.Remove(eventType);
                 await _context.SaveChangesAsync();
+
                 return RedirectToAction(nameof(Index));
             }
             catch (DbUpdateException)
             {
-                ModelState.AddModelError(string.Empty,
-        "This eventType type cannot be deleted because it is used by one or more events.");
-
-                var vm = new EventTypeDeleteViewModel
-                {
-                    EventTypeId = eventType.EventTypeId,
-                    Name = eventType.Name
-                };
-
-                return View("Delete", vm);
+                return ReturnEventTypeDeleteViewWithError(
+                    eventType,
+                    "This event type cannot be deleted because it is used by one or more events.");
             }
         }
 
         private bool EventTypeExists(long id)
         {
             return _context.EventTypes.Any(e => e.EventTypeId == id);
+        }
+
+        private async Task<bool> EventTypeHasDependenciesAsync(long eventTypeId)
+        {
+            return await _context.Events
+                .AnyAsync(e => e.EventTypeId == eventTypeId);
+        }
+
+        private static EventTypeDeleteViewModel MapToDeleteViewModel(EventType eventType)
+        {
+            return new EventTypeDeleteViewModel
+            {
+                EventTypeId = eventType.EventTypeId,
+                Name = eventType.Name
+            };
+        }
+
+        private IActionResult ReturnEventTypeDeleteViewWithError(EventType eventType, string errorMessage)
+        {
+            ModelState.AddModelError(string.Empty, errorMessage);
+
+            var vm = MapToDeleteViewModel(eventType);
+
+            return View("Delete", vm);
         }
     }
 }

@@ -41,7 +41,9 @@
         </dd>
     </dl>
 
-    <form asp-action="Delete">
+    <form asp-action="Delete" method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
         <input type="hidden" asp-for="SpeakerId" />
 
         <input type="submit" value="Delete" class="btn btn-danger" />

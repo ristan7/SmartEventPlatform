@@ -225,14 +225,35 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var @event = await _context.Events.FindAsync(id);
-            if (@event != null)
+            var @event = await _context.Events
+                .Include(e => e.Location)
+                .FirstOrDefaultAsync(e => e.EventId == id);
+
+            if (@event == null)
+            {
+                return NotFound();
+            }
+
+            if (await EventHasDependenciesAsync(id))
+            {
+                return ReturnEventDeleteViewWithError(
+                    @event,
+                    "This event cannot be deleted because it has assigned speakers or participant registrations.");
+            }
+
+            try
             {
                 _context.Events.Remove(@event);
                 await _context.SaveChangesAsync();
-            }
 
-            return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Index));
+            }
+            catch (DbUpdateException)
+            {
+                return ReturnEventDeleteViewWithError(
+                    @event,
+                    "This event cannot be deleted because it is used by other records.");
+            }
         }
 
         public async Task<IActionResult> Available()
@@ -289,6 +310,39 @@ namespace SmartEventPlatformWeb.Controllers
                     Value = et.EventTypeId.ToString(),
                     Text = et.Name
                 }).ToListAsync();
+        }
+
+        private async Task<bool> EventHasDependenciesAsync(long eventId)
+        {
+            var hasSpeakers = await _context.EventSpeakers
+                .AnyAsync(es => es.EventId == eventId);
+
+            var hasRegistrations = await _context.Registrations
+                .AnyAsync(r => r.EventId == eventId);
+
+            return hasSpeakers || hasRegistrations;
+        }
+
+        private static EventDeleteViewModel MapToDeleteViewModel(Event @event)
+        {
+            return new EventDeleteViewModel
+            {
+                EventId = @event.EventId,
+                EventName = @event.EventName,
+                EventDateTime = @event.EventDateTime,
+                LocationName = @event.Location != null
+                    ? @event.Location.LocationName
+                    : string.Empty
+            };
+        }
+
+        private IActionResult ReturnEventDeleteViewWithError(Event @event, string errorMessage)
+        {
+            ModelState.AddModelError(string.Empty, errorMessage);
+
+            var vm = MapToDeleteViewModel(@event);
+
+            return View("Delete", vm);
         }
 
     }
