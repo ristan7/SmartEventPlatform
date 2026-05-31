@@ -64,18 +64,18 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(EventTypeCreateViewModel vm)
         {
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                var @event = new EventType
-                {
-                    Name = vm.Name
-                };
-                _context.EventTypes.Add(@event);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                return View(vm);
             }
 
-            return View(vm);
+            var eventType = new EventType
+            {
+                Name = vm.Name
+            };
+            _context.EventTypes.Add(eventType);
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -85,16 +85,16 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var @event = await _context.EventTypes.FindAsync(id);
-            if (@event == null)
+            var eventType = await _context.EventTypes.FindAsync(id);
+            if (eventType == null)
             {
                 return NotFound();
             }
 
             var vm = new EventTypeEditViewModel
             {
-                EventTypeId = @event.EventTypeId,
-                Name = @event.Name
+                EventTypeId = eventType.EventTypeId,
+                Name = eventType.Name
             };
 
             return View(vm);
@@ -109,35 +109,36 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                try
-                {
-                    var @event = await _context.EventTypes.FindAsync(id);
-                    if (@event == null)
-                    {
-                        return NotFound();
-                    }
-
-                    @event.Name = vm.Name;
-
-                    _context.Update(@event);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!_context.EventTypes.Any(e => e.EventTypeId == vm.EventTypeId))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
+                return View(vm);
             }
-            return View(vm);
+
+            try
+            {
+                var eventType = await _context.EventTypes.FindAsync(id);
+                if (eventType == null)
+                {
+                    return NotFound();
+                }
+
+                eventType.Name = vm.Name;
+
+                _context.Update(eventType);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!EventTypeExists(vm.EventTypeId))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -168,34 +169,36 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var @event = await _context.EventTypes.FindAsync(id);
+            var eventType = await _context.EventTypes.FindAsync(id);
 
-            if (@event == null)
+            if (eventType == null)
             {
                 return NotFound();
             }
-
             try
             {
-                _context.EventTypes.Remove(@event);
+                _context.EventTypes.Remove(eventType);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
             catch (DbUpdateException)
             {
                 ModelState.AddModelError(string.Empty,
-        "This event type cannot be deleted because it is used by one or more events.");
+        "This eventType type cannot be deleted because it is used by one or more events.");
 
                 var vm = new EventTypeDeleteViewModel
                 {
-                    EventTypeId = @event.EventTypeId,
-                    Name = @event.Name
+                    EventTypeId = eventType.EventTypeId,
+                    Name = eventType.Name
                 };
 
                 return View("Delete", vm);
             }
+        }
 
-
+        private bool EventTypeExists(long id)
+        {
+            return _context.EventTypes.Any(e => e.EventTypeId == id);
         }
     }
 }

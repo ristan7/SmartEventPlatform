@@ -37,7 +37,7 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var locationDetails = await _context.Locations
+            var vm = await _context.Locations
                 .Where(l => l.LocationId == id)
                 .Select(l => new LocationDetailsViewModel
                 {
@@ -46,13 +46,13 @@ namespace SmartEventPlatformWeb.Controllers
                     Address = l.Address,
                     Capacity = l.Capacity
                 }).FirstOrDefaultAsync();
-            
-            if (locationDetails == null)
+
+            if (vm == null)
             {
                 return NotFound();
             }
 
-            return View(locationDetails);
+            return View(vm);
         }
 
         public IActionResult Create()
@@ -64,19 +64,19 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(LocationCreateViewModel vm)
         {
-            if (ModelState.IsValid)
-            {   
-                var location = new Location
-                {
-                    LocationName = vm.LocationName,
-                    Address = vm.Address,
-                    Capacity = vm.Capacity
-                };
-                _context.Add(location);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+            if (!ModelState.IsValid)
+            {
+                return View(vm);
             }
-            return View(vm);
+            var location = new Location
+            {
+                LocationName = vm.LocationName,
+                Address = vm.Address,
+                Capacity = vm.Capacity
+            };
+            _context.Add(location);
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -110,37 +110,37 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                try
-                {
-                    var location = await _context.Locations.FindAsync(id);
-                    if(location == null)
-                    {
-                        return NotFound();
-                    }
-
-                    location.LocationName = vm.LocationName;
-                    location.Address = vm.Address;
-                    location.Capacity = vm.Capacity;
-
-                    _context.Update(location);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!LocationExists(vm.LocationId))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
+                return View(vm);
             }
-            return View(vm);
+            try
+            {
+                var location = await _context.Locations.FindAsync(id);
+                if (location == null)
+                {
+                    return NotFound();
+                }
+
+                location.LocationName = vm.LocationName;
+                location.Address = vm.Address;
+                location.Capacity = vm.Capacity;
+
+                _context.Update(location);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!LocationExists(vm.LocationId))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Delete(long? id)

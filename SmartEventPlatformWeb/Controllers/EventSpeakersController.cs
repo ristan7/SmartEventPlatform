@@ -39,7 +39,10 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Details(long? id)
         {
-            if (id == null) return NotFound();
+            if (id == null)
+            {
+                return NotFound();
+            }
 
             var vm = await _context.EventSpeakers
                 .Include(es => es.Event)
@@ -56,7 +59,10 @@ namespace SmartEventPlatformWeb.Controllers
                     SpeakerId = es.SpeakerId
                 }).FirstOrDefaultAsync();
 
-            if (vm == null) return NotFound();
+            if (vm == null)
+            {
+                return NotFound();
+            }
 
             return View(vm);
         }
@@ -112,10 +118,16 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null) return NotFound();
+            if (id == null)
+            {
+                return NotFound();
+            }
 
             var eventSpeaker = await _context.EventSpeakers.FindAsync(id);
-            if (eventSpeaker == null) return NotFound();
+            if (eventSpeaker == null)
+            {
+                return NotFound();
+            }
 
             var vm = new EventSpeakerEditViewModel
             {
@@ -135,7 +147,10 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(long id, EventSpeakerEditViewModel vm)
         {
-            if (id != vm.EventSpeakerId) return NotFound();
+            if (id != vm.EventSpeakerId)
+            {
+                return NotFound();
+            }
 
             if (!ModelState.IsValid)
             {
@@ -157,31 +172,43 @@ namespace SmartEventPlatformWeb.Controllers
                 return View(vm);
             }
 
-            var eventSpeaker = await _context.EventSpeakers.FirstOrDefaultAsync(es => es.EventSpeakerId == id);
-
-            if (eventSpeaker == null) return NotFound();
-
-            eventSpeaker.EventId = vm.EventId;
-            eventSpeaker.SpeakerId = vm.SpeakerId;
-            eventSpeaker.Topic = vm.Topic;
-            eventSpeaker.Time = vm.Time;
-
             try
             {
+                var eventSpeaker = await _context.EventSpeakers.FindAsync(id);
+
+                if (eventSpeaker == null)
+                {
+                    return NotFound();
+                }
+
+                eventSpeaker.EventId = vm.EventId;
+                eventSpeaker.SpeakerId = vm.SpeakerId;
+                eventSpeaker.Topic = vm.Topic;
+                eventSpeaker.Time = vm.Time;
+
                 _context.EventSpeakers.Update(eventSpeaker);
                 await _context.SaveChangesAsync();
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!EventSpeakerExists(vm.EventSpeakerId)) return NotFound();
-                else throw;
+                if (!EventSpeakerExists(vm.EventSpeakerId))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
             }
             return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Delete(long? id)
         {
-            if (id == null) return NotFound();
+            if (id == null)
+            {
+                return NotFound();
+            }
 
             var vm = await _context.EventSpeakers
                 .Include(es => es.Event)
@@ -196,7 +223,10 @@ namespace SmartEventPlatformWeb.Controllers
                     Time = es.Time
                 }).FirstOrDefaultAsync();
 
-            if (vm == null) return NotFound();
+            if (vm == null)
+            {
+                return NotFound();
+            }
 
             return View(vm);
         }
@@ -205,7 +235,7 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var eventSpeaker = await _context.EventSpeakers.FirstOrDefaultAsync(eventSpeaker => eventSpeaker.EventSpeakerId == id);
+            var eventSpeaker = await _context.EventSpeakers.FindAsync(id);
 
             if (eventSpeaker != null)
             {
@@ -218,6 +248,22 @@ namespace SmartEventPlatformWeb.Controllers
         private bool EventSpeakerExists(long id)
         {
             return _context.EventSpeakers.Any(e => e.EventSpeakerId == id);
+        }
+
+        private async Task<bool> IsSpeakerTimeInsideEventAsync(long eventId, DateTime speakerTime)
+        {
+            var selectedEvent = await _context.Events
+                .FirstOrDefaultAsync(e => e.EventId == eventId);
+
+            if (selectedEvent == null)
+            {
+                return false;
+            }
+
+            var eventStart = selectedEvent.EventDateTime;
+            var eventEnd = selectedEvent.EventDateTime.AddMinutes(selectedEvent.DurationInMinutes);
+
+            return speakerTime >= eventStart && speakerTime <= eventEnd;
         }
 
         private async Task<List<SelectListItem>> GetEventsSelectListAsync()
@@ -240,21 +286,7 @@ namespace SmartEventPlatformWeb.Controllers
                 }).ToListAsync();
         }
 
-        private async Task<bool> IsSpeakerTimeInsideEventAsync(long eventId, DateTime speakerTime)
-        {
-            var selectedEvent = await _context.Events
-                .FirstOrDefaultAsync(e => e.EventId == eventId);
-
-            if (selectedEvent == null)
-            {
-                return false;
-            }
-
-            var eventStart = selectedEvent.EventDateTime;
-            var eventEnd = selectedEvent.EventDateTime.AddMinutes(selectedEvent.DurationInMinutes);
-
-            return speakerTime >= eventStart && speakerTime <= eventEnd;
-        }
+        
 
     }
 }
