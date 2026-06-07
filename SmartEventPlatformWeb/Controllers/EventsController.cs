@@ -1,42 +1,41 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.Events;
+using SmartEventPlatformWeb.Services;
 using SmartEventPlatformWeb.ViewModels.Events;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class EventsController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IEventApiClient _eventApiClient;
+        private readonly IRegistrationApiClient _registrationApiClient;
 
-        public EventsController(SmartPlatformDbContext context)
+        public EventsController(
+            IEventApiClient eventApiClient,
+            IRegistrationApiClient registrationApiClient)
         {
-            _context = context;
+            _eventApiClient = eventApiClient;
+            _registrationApiClient = registrationApiClient;
         }
 
         public async Task<IActionResult> Index()
         {
-            var events = await _context.Events
-                .Include(e => e.Location)
-                .Include(e => e.EventType)
+            var events = await _eventApiClient.GetEventsAsync();
+
+            var vm = events
                 .OrderBy(e => e.EventDateTime)
                 .Select(e => new EventListViewModel
                 {
                     EventId = e.EventId,
                     EventName = e.EventName,
                     EventDateTime = e.EventDateTime,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
-                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty
+                    LocationName = e.LocationName,
+                    EventTypeName = e.EventTypeName
                 })
-                .ToListAsync();
+                .ToList();
 
-            return View(events);
+            return View(vm);
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -46,37 +45,38 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Events
-                .Include(e => e.Location)
-                .Include(e => e.EventType)
-                .Include(e => e.EventSpeakers).ThenInclude(es => es.Speaker)
-                .Where(e => e.EventId == id)
-                .Select(e => new EventDetailsViewModel
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    Agenda = e.Agenda,
-                    EventDateTime = e.EventDateTime,
-                    DurationInMinutes = e.DurationInMinutes,
-                    RegistrationFee = e.RegistrationFee,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
-                    LocationAddress = e.Location != null ? e.Location.Address : string.Empty,
-                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
-                    Speakers = e.EventSpeakers
+            var eventDto = await _eventApiClient.GetEventByIdAsync(id.Value);
+
+            if (eventDto == null)
+            {
+                return NotFound();
+            }
+
+            var eventSpeakers = await _eventApiClient.GetEventSpeakersAsync();
+
+            var vm = new EventDetailsViewModel
+            {
+                EventId = eventDto.EventId,
+                EventName = eventDto.EventName,
+                Agenda = eventDto.Agenda,
+                EventDateTime = eventDto.EventDateTime,
+                DurationInMinutes = eventDto.DurationInMinutes,
+                RegistrationFee = eventDto.RegistrationFee,
+                LocationName = eventDto.LocationName,
+                LocationAddress = eventDto.LocationAddress,
+                EventTypeName = eventDto.EventTypeName,
+                Speakers = eventSpeakers
+                    .Where(es => es.EventId == eventDto.EventId)
                     .OrderBy(es => es.Time)
                     .Select(es => new EventSpeakerItemViewModel
                     {
                         EventSpeakerId = es.EventSpeakerId,
-                        SpeakerFullName = es.Speaker!.FirstName + " " + es.Speaker.LastName,
+                        SpeakerFullName = es.SpeakerFullName,
                         Topic = es.Topic,
                         Time = es.Time
-                    }).ToList()
-                })
-                .FirstOrDefaultAsync();
-            if (vm == null)
-            {
-                return NotFound();
-            }
+                    })
+                    .ToList()
+            };
 
             return View(vm);
         }
@@ -103,7 +103,7 @@ namespace SmartEventPlatformWeb.Controllers
                 return View(vm);
             }
 
-            var @event = new Event
+            var dto = new EventCreateUpdateDto
             {
                 EventName = vm.EventName,
                 Agenda = vm.Agenda,
@@ -113,9 +113,21 @@ namespace SmartEventPlatformWeb.Controllers
                 LocationId = vm.LocationId,
                 EventTypeId = vm.EventTypeId
             };
-            _context.Events.Add(@event);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                await _eventApiClient.CreateEventAsync(dto);
+                return RedirectToAction(nameof(Index));
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+
+                vm.Locations = await GetLocationsSelectListAsync();
+                vm.EventTypes = await GetTypesSelectListAsync();
+
+                return View(vm);
+            }
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -125,24 +137,27 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var @event = await _context.Events.FindAsync(id);
-            if (@event == null)
+            var eventDto = await _eventApiClient.GetEventByIdAsync(id.Value);
+
+            if (eventDto == null)
             {
                 return NotFound();
             }
+
             var vm = new EventEditViewModel
             {
-                EventId = @event.EventId,
-                EventName = @event.EventName,
-                Agenda = @event.Agenda,
-                EventDateTime = @event.EventDateTime,
-                DurationInMinutes = @event.DurationInMinutes,
-                RegistrationFee = @event.RegistrationFee,
-                LocationId = @event.LocationId,
-                EventTypeId = @event.EventTypeId,
+                EventId = eventDto.EventId,
+                EventName = eventDto.EventName,
+                Agenda = eventDto.Agenda,
+                EventDateTime = eventDto.EventDateTime,
+                DurationInMinutes = eventDto.DurationInMinutes,
+                RegistrationFee = eventDto.RegistrationFee,
+                LocationId = eventDto.LocationId,
+                EventTypeId = eventDto.EventTypeId,
                 Locations = await GetLocationsSelectListAsync(),
                 EventTypes = await GetTypesSelectListAsync()
             };
+
             return View(vm);
         }
 
@@ -162,37 +177,31 @@ namespace SmartEventPlatformWeb.Controllers
                 return View(vm);
             }
 
+            var dto = new EventCreateUpdateDto
+            {
+                EventName = vm.EventName,
+                Agenda = vm.Agenda,
+                EventDateTime = vm.EventDateTime,
+                DurationInMinutes = vm.DurationInMinutes,
+                RegistrationFee = vm.RegistrationFee,
+                LocationId = vm.LocationId,
+                EventTypeId = vm.EventTypeId
+            };
+
             try
             {
-                var @event = await _context.Events.FindAsync(id);
-
-                if (@event == null)
-                {
-                    return NotFound();
-                }
-                @event.EventName = vm.EventName;
-                @event.Agenda = vm.Agenda;
-                @event.EventDateTime = vm.EventDateTime;
-                @event.DurationInMinutes = vm.DurationInMinutes;
-                @event.RegistrationFee = vm.RegistrationFee;
-                @event.LocationId = vm.LocationId;
-                @event.EventTypeId = vm.EventTypeId;
-
-                _context.Update(@event);
-                await _context.SaveChangesAsync();
+                await _eventApiClient.UpdateEventAsync(id, dto);
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (HttpRequestException ex)
             {
-                if (!EventExists(vm.EventId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, ex.Message);
+
+                vm.Locations = await GetLocationsSelectListAsync();
+                vm.EventTypes = await GetTypesSelectListAsync();
+
+                return View(vm);
             }
-            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -202,21 +211,14 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Events
-                .Include(e => e.Location)
-                .Where(e => e.EventId == id)
-                .Select(e => new EventDeleteViewModel
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    EventDateTime = e.EventDateTime,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty
-                })
-                .FirstOrDefaultAsync();
-            if (vm == null)
+            var eventDto = await _eventApiClient.GetEventByIdAsync(id.Value);
+
+            if (eventDto == null)
             {
                 return NotFound();
             }
+
+            var vm = MapToDeleteViewModel(eventDto);
 
             return View(vm);
         }
@@ -225,125 +227,98 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var @event = await _context.Events
-                .Include(e => e.Location)
-                .FirstOrDefaultAsync(e => e.EventId == id);
+            var eventDto = await _eventApiClient.GetEventByIdAsync(id);
 
-            if (@event == null)
+            if (eventDto == null)
             {
                 return NotFound();
             }
 
-            if (await EventHasDependenciesAsync(id))
-            {
-                return ReturnEventDeleteViewWithError(
-                    @event,
-                    "This event cannot be deleted because it has assigned speakers or participant registrations.");
-            }
-
             try
             {
-                _context.Events.Remove(@event);
-                await _context.SaveChangesAsync();
-
+                await _eventApiClient.DeleteEventAsync(id);
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (HttpRequestException ex)
             {
-                return ReturnEventDeleteViewWithError(
-                    @event,
-                    "This event cannot be deleted because it is used by other records.");
+                ModelState.AddModelError(string.Empty, ex.Message);
+
+                var vm = MapToDeleteViewModel(eventDto);
+
+                return View("Delete", vm);
             }
         }
 
         public async Task<IActionResult> Available()
         {
-            var now = DateTime.Now;
+            try
+            {
+                var availableEvents = await _registrationApiClient.GetAvailableEventsAsync();
 
-            var events = await _context.Events
-                .Where(e => e.EventDateTime >= now)
-                .Where(e => e.Registrations.Count() < e.Location!.Capacity)
-                .OrderBy(e => e.EventDateTime)
-                .Select(e => new AvailableEventViewModel
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    Agenda = e.Agenda,
-                    EventDateTime = e.EventDateTime,
-                    DurationInMinutes = e.DurationInMinutes,
-                    RegistrationFee = e.RegistrationFee,
+                var vm = availableEvents
+                    .OrderBy(e => e.EventDateTime)
+                    .Select(e => new AvailableEventViewModel
+                    {
+                        EventId = e.EventId,
+                        EventName = e.EventName,
+                        Agenda = e.Agenda,
+                        EventDateTime = e.EventDateTime,
+                        DurationInMinutes = e.DurationInMinutes,
+                        RegistrationFee = e.RegistrationFee,
+                        LocationName = e.LocationName,
+                        Capacity = e.Capacity,
+                        RegisteredCount = e.RegisteredCount,
+                        Speakers = e.Speakers
+                    })
+                    .ToList();
 
-                    LocationName = e.Location!.LocationName,
-                    Capacity = e.Location.Capacity,
-                    RegisteredCount = e.Registrations.Count(),
+                return View(vm);
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
 
-                    Speakers = e.EventSpeakers
-                        .Select(es => es.Speaker!.FirstName + " " + es.Speaker.LastName)
-                        .ToList()
-                })
-                .ToListAsync();
-
-            return View(events);
-        }
-
-        private bool EventExists(long id)
-        {
-            return _context.Events.Any(e => e.EventId == id);
+                return View(new List<AvailableEventViewModel>());
+            }
         }
 
         private async Task<List<SelectListItem>> GetLocationsSelectListAsync()
         {
-            return await _context.Locations
-                    .Select(l => new SelectListItem
-                    {
-                        Value = l.LocationId.ToString(),
-                        Text = l.LocationName
-                    })
-                    .ToListAsync();
+            var locations = await _eventApiClient.GetLocationsAsync();
+
+            return locations
+                .OrderBy(l => l.LocationName)
+                .Select(l => new SelectListItem
+                {
+                    Value = l.LocationId.ToString(),
+                    Text = l.LocationName
+                })
+                .ToList();
         }
 
         private async Task<List<SelectListItem>> GetTypesSelectListAsync()
         {
-            return await _context.EventTypes
+            var eventTypes = await _eventApiClient.GetEventTypesAsync();
+
+            return eventTypes
+                .OrderBy(et => et.Name)
                 .Select(et => new SelectListItem
                 {
                     Value = et.EventTypeId.ToString(),
                     Text = et.Name
-                }).ToListAsync();
+                })
+                .ToList();
         }
 
-        private async Task<bool> EventHasDependenciesAsync(long eventId)
-        {
-            var hasSpeakers = await _context.EventSpeakers
-                .AnyAsync(es => es.EventId == eventId);
-
-            var hasRegistrations = await _context.Registrations
-                .AnyAsync(r => r.EventId == eventId);
-
-            return hasSpeakers || hasRegistrations;
-        }
-
-        private static EventDeleteViewModel MapToDeleteViewModel(Event @event)
+        private static EventDeleteViewModel MapToDeleteViewModel(EventDto eventDto)
         {
             return new EventDeleteViewModel
             {
-                EventId = @event.EventId,
-                EventName = @event.EventName,
-                EventDateTime = @event.EventDateTime,
-                LocationName = @event.Location != null
-                    ? @event.Location.LocationName
-                    : string.Empty
+                EventId = eventDto.EventId,
+                EventName = eventDto.EventName,
+                EventDateTime = eventDto.EventDateTime,
+                LocationName = eventDto.LocationName
             };
         }
-
-        private IActionResult ReturnEventDeleteViewWithError(Event @event, string errorMessage)
-        {
-            ModelState.AddModelError(string.Empty, errorMessage);
-
-            var vm = MapToDeleteViewModel(@event);
-
-            return View("Delete", vm);
-        }
-
     }
 }

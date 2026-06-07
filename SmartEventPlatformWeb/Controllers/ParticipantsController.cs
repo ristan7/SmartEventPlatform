@@ -1,32 +1,36 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.Participants;
+using SmartEventPlatformWeb.Services;
 using SmartEventPlatformWeb.ViewModels.Participants;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class ParticipantsController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IRegistrationApiClient _registrationApiClient;
 
-        public ParticipantsController(SmartPlatformDbContext context)
+        public ParticipantsController(IRegistrationApiClient registrationApiClient)
         {
-            _context = context;
+            _registrationApiClient = registrationApiClient;
         }
 
         public async Task<IActionResult> Index()
         {
-            var part = await _context.Participants
+            var participants = await _registrationApiClient.GetParticipantsAsync();
+
+            var vm = participants
                 .OrderBy(p => p.LastName)
+                .ThenBy(p => p.FirstName)
                 .Select(p => new ParticipantListViewModel
                 {
                     ParticipantId = p.ParticipantId,
                     FirstName = p.FirstName,
                     LastName = p.LastName,
                     Email = p.Email
-                }).ToListAsync();
-            return View(part);
+                })
+                .ToList();
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -36,21 +40,20 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Participants
-                .Where(p => p.ParticipantId == id)
-                .Select(p => new ParticipantDetailsViewModel
-                {
-                    ParticipantId = p.ParticipantId,
-                    FirstName = p.FirstName,
-                    LastName = p.LastName,
-                    Email = p.Email
-                })
-                .FirstOrDefaultAsync();
+            var participant = await _registrationApiClient.GetParticipantByIdAsync(id.Value);
 
-            if (vm == null)
+            if (participant == null)
             {
                 return NotFound();
             }
+
+            var vm = new ParticipantDetailsViewModel
+            {
+                ParticipantId = participant.ParticipantId,
+                FirstName = participant.FirstName,
+                LastName = participant.LastName,
+                Email = participant.Email
+            };
 
             return View(vm);
         }
@@ -68,15 +71,24 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
-            var participant = new Participant
+
+            var dto = new ParticipantDto
             {
                 FirstName = vm.FirstName,
                 LastName = vm.LastName,
                 Email = vm.Email
             };
-            _context.Participants.Add(participant);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                await _registrationApiClient.CreateParticipantAsync(dto);
+                return RedirectToAction(nameof(Index));
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
+            }
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -86,19 +98,21 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var @event = await _context.Participants.FindAsync(id);
-            if (@event == null)
+            var participant = await _registrationApiClient.GetParticipantByIdAsync(id.Value);
+
+            if (participant == null)
             {
                 return NotFound();
             }
 
             var vm = new ParticipantEditViewModel
             {
-                ParticipantId = @event.ParticipantId,
-                FirstName = @event.FirstName,
-                LastName = @event.LastName,
-                Email = @event.Email
+                ParticipantId = participant.ParticipantId,
+                FirstName = participant.FirstName,
+                LastName = participant.LastName,
+                Email = participant.Email
             };
+
             return View(vm);
         }
 
@@ -115,32 +129,25 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
+
+            var dto = new ParticipantDto
+            {
+                ParticipantId = vm.ParticipantId,
+                FirstName = vm.FirstName,
+                LastName = vm.LastName,
+                Email = vm.Email
+            };
+
             try
             {
-                var participant = await _context.Participants.FindAsync(id);
-                if (participant == null)
-                {
-                    return NotFound();
-                }
-
-                participant.FirstName = vm.FirstName;
-                participant.LastName = vm.LastName;
-                participant.Email = vm.Email;
-                _context.Update(participant);
-                await _context.SaveChangesAsync();
+                await _registrationApiClient.UpdateParticipantAsync(id, dto);
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (HttpRequestException ex)
             {
-                if (!ParticipantExists(vm.ParticipantId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
             }
-            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -150,20 +157,15 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Participants
-                .Where(p => p.ParticipantId == id)
-                .Select(p => new ParticipantDeleteViewModel
-                {
-                    ParticipantId = p.ParticipantId,
-                    FirstName = p.FirstName,
-                    LastName = p.LastName,
-                    Email = p.Email
-                }).FirstOrDefaultAsync();
+            var participant = await _registrationApiClient.GetParticipantByIdAsync(id.Value);
 
-            if (vm == null)
+            if (participant == null)
             {
                 return NotFound();
             }
+
+            var vm = MapToDeleteViewModel(participant);
+
             return View(vm);
         }
 
@@ -171,47 +173,29 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var participant = await _context.Participants.FindAsync(id);
+            var participant = await _registrationApiClient.GetParticipantByIdAsync(id);
 
             if (participant == null)
             {
                 return NotFound();
             }
 
-            if (await ParticipantHasDependenciesAsync(id))
-            {
-                return ReturnParticipantDeleteViewWithError(
-                    participant,
-                    "This participant cannot be deleted because they have one or more event registrations.");
-            }
-
             try
             {
-                _context.Participants.Remove(participant);
-                await _context.SaveChangesAsync();
-
+                await _registrationApiClient.DeleteParticipantAsync(id);
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (HttpRequestException ex)
             {
-                return ReturnParticipantDeleteViewWithError(
-                    participant,
-                    "This participant cannot be deleted because they are used by other records.");
+                ModelState.AddModelError(string.Empty, ex.Message);
+
+                var vm = MapToDeleteViewModel(participant);
+
+                return View("Delete", vm);
             }
         }
 
-        private bool ParticipantExists(long id)
-        {
-            return _context.Participants.Any(p => p.ParticipantId == id);
-        }
-
-        private async Task<bool> ParticipantHasDependenciesAsync(long participantId)
-        {
-            return await _context.Registrations
-                .AnyAsync(r => r.ParticipantId == participantId);
-        }
-
-        private static ParticipantDeleteViewModel MapToDeleteViewModel(Participant participant)
+        private static ParticipantDeleteViewModel MapToDeleteViewModel(ParticipantDto participant)
         {
             return new ParticipantDeleteViewModel
             {
@@ -220,15 +204,6 @@ namespace SmartEventPlatformWeb.Controllers
                 LastName = participant.LastName,
                 Email = participant.Email
             };
-        }
-
-        private IActionResult ReturnParticipantDeleteViewWithError(Participant participant, string errorMessage)
-        {
-            ModelState.AddModelError(string.Empty, errorMessage);
-
-            var vm = MapToDeleteViewModel(participant);
-
-            return View("Delete", vm);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace SmartEventPlatformWeb.RegistrationService.Models
+﻿namespace SmartEventPlatform.RegistrationService.Models
 {
     public class Registration
     {

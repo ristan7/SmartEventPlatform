@@ -1,34 +1,33 @@
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.EventTypes;
+using SmartEventPlatformWeb.Services;
 using SmartEventPlatformWeb.ViewModels.EventTypes;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class EventTypesController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IEventApiClient _eventApiClient;
 
-        public EventTypesController(SmartPlatformDbContext context)
+        public EventTypesController(IEventApiClient eventApiClient)
         {
-            _context = context;
+            _eventApiClient = eventApiClient;
         }
 
         public async Task<IActionResult> Index()
         {
-            var types = await _context.EventTypes
+            var eventTypes = await _eventApiClient.GetEventTypesAsync();
+
+            var vm = eventTypes
                 .OrderBy(t => t.Name)
                 .Select(t => new EventTypeListViewModel
                 {
                     EventTypeId = t.EventTypeId,
                     Name = t.Name
                 })
-                .ToListAsync();
+                .ToList();
 
-            return View(types);
+            return View(vm);
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -38,19 +37,18 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.EventTypes
-                .Where(e => e.EventTypeId == id)
-                .Select(e => new EventTypeDetailsViewModel
-                {
-                    EventTypeId = e.EventTypeId,
-                    Name = e.Name
-                })
-                .FirstOrDefaultAsync();
+            var eventType = await _eventApiClient.GetEventTypeByIdAsync(id.Value);
 
-            if (vm == null)
+            if (eventType == null)
             {
                 return NotFound();
             }
+
+            var vm = new EventTypeDetailsViewModel
+            {
+                EventTypeId = eventType.EventTypeId,
+                Name = eventType.Name
+            };
 
             return View(vm);
         }
@@ -69,13 +67,21 @@ namespace SmartEventPlatformWeb.Controllers
                 return View(vm);
             }
 
-            var eventType = new EventType
+            var dto = new EventTypeDto
             {
                 Name = vm.Name
             };
-            _context.EventTypes.Add(eventType);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                await _eventApiClient.CreateEventTypeAsync(dto);
+                return RedirectToAction(nameof(Index));
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
+            }
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -85,7 +91,8 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var eventType = await _context.EventTypes.FindAsync(id);
+            var eventType = await _eventApiClient.GetEventTypeByIdAsync(id.Value);
+
             if (eventType == null)
             {
                 return NotFound();
@@ -114,31 +121,22 @@ namespace SmartEventPlatformWeb.Controllers
                 return View(vm);
             }
 
+            var dto = new EventTypeDto
+            {
+                EventTypeId = vm.EventTypeId,
+                Name = vm.Name
+            };
+
             try
             {
-                var eventType = await _context.EventTypes.FindAsync(id);
-                if (eventType == null)
-                {
-                    return NotFound();
-                }
-
-                eventType.Name = vm.Name;
-
-                _context.Update(eventType);
-                await _context.SaveChangesAsync();
+                await _eventApiClient.UpdateEventTypeAsync(id, dto);
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (HttpRequestException ex)
             {
-                if (!EventTypeExists(vm.EventTypeId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
             }
-            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -148,19 +146,14 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.EventTypes
-                .Where(e => e.EventTypeId == id)
-                .Select(e => new EventTypeDeleteViewModel
-                {
-                    EventTypeId = e.EventTypeId,
-                    Name = e.Name
-                })
-                .FirstOrDefaultAsync();
+            var eventType = await _eventApiClient.GetEventTypeByIdAsync(id.Value);
 
-            if (vm == null)
+            if (eventType == null)
             {
                 return NotFound();
             }
+
+            var vm = MapToDeleteViewModel(eventType);
 
             return View(vm);
         }
@@ -169,62 +162,35 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var eventType = await _context.EventTypes.FindAsync(id);
+            var eventType = await _eventApiClient.GetEventTypeByIdAsync(id);
 
             if (eventType == null)
             {
                 return NotFound();
             }
 
-            if (await EventTypeHasDependenciesAsync(id))
-            {
-                return ReturnEventTypeDeleteViewWithError(
-                    eventType,
-                    "This event type cannot be deleted because it is used by one or more events.");
-            }
-
             try
             {
-                _context.EventTypes.Remove(eventType);
-                await _context.SaveChangesAsync();
-
+                await _eventApiClient.DeleteEventTypeAsync(id);
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (HttpRequestException ex)
             {
-                return ReturnEventTypeDeleteViewWithError(
-                    eventType,
-                    "This event type cannot be deleted because it is used by one or more events.");
+                ModelState.AddModelError(string.Empty, ex.Message);
+
+                var vm = MapToDeleteViewModel(eventType);
+
+                return View("Delete", vm);
             }
         }
 
-        private bool EventTypeExists(long id)
-        {
-            return _context.EventTypes.Any(e => e.EventTypeId == id);
-        }
-
-        private async Task<bool> EventTypeHasDependenciesAsync(long eventTypeId)
-        {
-            return await _context.Events
-                .AnyAsync(e => e.EventTypeId == eventTypeId);
-        }
-
-        private static EventTypeDeleteViewModel MapToDeleteViewModel(EventType eventType)
+        private static EventTypeDeleteViewModel MapToDeleteViewModel(EventTypeDto eventType)
         {
             return new EventTypeDeleteViewModel
             {
                 EventTypeId = eventType.EventTypeId,
                 Name = eventType.Name
             };
-        }
-
-        private IActionResult ReturnEventTypeDeleteViewWithError(EventType eventType, string errorMessage)
-        {
-            ModelState.AddModelError(string.Empty, errorMessage);
-
-            var vm = MapToDeleteViewModel(eventType);
-
-            return View("Delete", vm);
         }
     }
 }

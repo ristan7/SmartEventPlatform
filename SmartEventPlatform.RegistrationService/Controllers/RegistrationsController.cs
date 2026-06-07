@@ -4,7 +4,7 @@ using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.Contracts.Registrations;
 using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.Patterns;
-using SmartEventPlatformWeb.RegistrationService.Models;
+using SmartEventPlatform.RegistrationService.Models;
 
 namespace SmartEventPlatform.RegistrationService.Controllers;
 

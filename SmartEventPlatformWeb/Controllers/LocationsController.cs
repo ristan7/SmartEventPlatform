@@ -1,23 +1,24 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.Locations;
+using SmartEventPlatformWeb.Services;
 using SmartEventPlatformWeb.ViewModels.Locations;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class LocationsController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IEventApiClient _eventApiClient;
 
-        public LocationsController(SmartPlatformDbContext context)
+        public LocationsController(IEventApiClient eventApiClient)
         {
-            _context = context;
+            _eventApiClient = eventApiClient;
         }
 
         public async Task<IActionResult> Index()
         {
-            var locations = await _context.Locations
+            var locations = await _eventApiClient.GetLocationsAsync();
+
+            var vm = locations
                 .OrderBy(l => l.LocationName)
                 .Select(l => new LocationListViewModel
                 {
@@ -25,9 +26,10 @@ namespace SmartEventPlatformWeb.Controllers
                     LocationName = l.LocationName,
                     Address = l.Address,
                     Capacity = l.Capacity
-                }).ToListAsync();
+                })
+                .ToList();
 
-            return View(locations);
+            return View(vm);
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -37,20 +39,20 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Locations
-                .Where(l => l.LocationId == id)
-                .Select(l => new LocationDetailsViewModel
-                {
-                    LocationId = l.LocationId,
-                    LocationName = l.LocationName,
-                    Address = l.Address,
-                    Capacity = l.Capacity
-                }).FirstOrDefaultAsync();
+            var location = await _eventApiClient.GetLocationByIdAsync(id.Value);
 
-            if (vm == null)
+            if (location == null)
             {
                 return NotFound();
             }
+
+            var vm = new LocationDetailsViewModel
+            {
+                LocationId = location.LocationId,
+                LocationName = location.LocationName,
+                Address = location.Address,
+                Capacity = location.Capacity
+            };
 
             return View(vm);
         }
@@ -68,15 +70,24 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
-            var location = new Location
+
+            var dto = new LocationDto
             {
                 LocationName = vm.LocationName,
                 Address = vm.Address,
                 Capacity = vm.Capacity
             };
-            _context.Add(location);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                await _eventApiClient.CreateLocationAsync(dto);
+                return RedirectToAction(nameof(Index));
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
+            }
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -86,11 +97,13 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var location = await _context.Locations.FindAsync(id);
+            var location = await _eventApiClient.GetLocationByIdAsync(id.Value);
+
             if (location == null)
             {
                 return NotFound();
             }
+
             var vm = new LocationEditViewModel
             {
                 LocationId = location.LocationId,
@@ -98,6 +111,7 @@ namespace SmartEventPlatformWeb.Controllers
                 Address = location.Address,
                 Capacity = location.Capacity
             };
+
             return View(vm);
         }
 
@@ -114,33 +128,25 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
+
+            var dto = new LocationDto
+            {
+                LocationId = vm.LocationId,
+                LocationName = vm.LocationName,
+                Address = vm.Address,
+                Capacity = vm.Capacity
+            };
+
             try
             {
-                var location = await _context.Locations.FindAsync(id);
-                if (location == null)
-                {
-                    return NotFound();
-                }
-
-                location.LocationName = vm.LocationName;
-                location.Address = vm.Address;
-                location.Capacity = vm.Capacity;
-
-                _context.Update(location);
-                await _context.SaveChangesAsync();
+                await _eventApiClient.UpdateLocationAsync(id, dto);
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (HttpRequestException ex)
             {
-                if (!LocationExists(vm.LocationId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
             }
-            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -150,20 +156,14 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Locations
-                .Where(l => l.LocationId == id)
-                .Select(l => new LocationDeleteViewModel
-                {
-                    LocationId = l.LocationId,
-                    LocationName = l.LocationName,
-                    Address = l.Address,
-                    Capacity = l.Capacity
-                }).FirstOrDefaultAsync();
+            var location = await _eventApiClient.GetLocationByIdAsync(id.Value);
 
-            if (vm == null)
+            if (location == null)
             {
                 return NotFound();
             }
+
+            var vm = MapToDeleteViewModel(location);
 
             return View(vm);
         }
@@ -172,47 +172,29 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var location = await _context.Locations.FindAsync(id);
+            var location = await _eventApiClient.GetLocationByIdAsync(id);
 
             if (location == null)
             {
                 return NotFound();
             }
 
-            if (await LocationHasDependenciesAsync(id))
-            {
-                return ReturnLocationDeleteViewWithError(
-                    location,
-                    "This location cannot be deleted because it is used by one or more events.");
-            }
-
             try
             {
-                _context.Locations.Remove(location);
-                await _context.SaveChangesAsync();
-
+                await _eventApiClient.DeleteLocationAsync(id);
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (HttpRequestException ex)
             {
-                return ReturnLocationDeleteViewWithError(
-                    location,
-                    "This location cannot be deleted because it is used by one or more events.");
+                ModelState.AddModelError(string.Empty, ex.Message);
+
+                var vm = MapToDeleteViewModel(location);
+
+                return View("Delete", vm);
             }
         }
 
-        private bool LocationExists(long id)
-        {
-            return _context.Locations.Any(l => l.LocationId == id);
-        }
-
-        private async Task<bool> LocationHasDependenciesAsync(long locationId)
-        {
-            return await _context.Events
-                .AnyAsync(e => e.LocationId == locationId);
-        }
-
-        private static LocationDeleteViewModel MapToDeleteViewModel(Location location)
+        private static LocationDeleteViewModel MapToDeleteViewModel(LocationDto location)
         {
             return new LocationDeleteViewModel
             {
@@ -221,15 +203,6 @@ namespace SmartEventPlatformWeb.Controllers
                 Address = location.Address,
                 Capacity = location.Capacity
             };
-        }
-
-        private IActionResult ReturnLocationDeleteViewWithError(Location location, string errorMessage)
-        {
-            ModelState.AddModelError(string.Empty, errorMessage);
-
-            var vm = MapToDeleteViewModel(location);
-
-            return View("Delete", vm);
         }
     }
 }

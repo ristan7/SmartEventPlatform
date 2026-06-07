@@ -1,4 +1,4 @@
-﻿namespace SmartEventPlatformWeb.EventService.Models
+﻿namespace SmartEventPlatform.EventService.Models
 {
     public class Event
     {

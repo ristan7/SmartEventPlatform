@@ -1,24 +1,26 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.Speakers;
+using SmartEventPlatformWeb.Services;
 using SmartEventPlatformWeb.ViewModels.Speakers;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class SpeakersController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IEventApiClient _eventApiClient;
 
-        public SpeakersController(SmartPlatformDbContext context)
+        public SpeakersController(IEventApiClient eventApiClient)
         {
-            _context = context;
+            _eventApiClient = eventApiClient;
         }
 
         public async Task<IActionResult> Index()
         {
-            var speakers = await _context.Speakers
+            var speakers = await _eventApiClient.GetSpeakersAsync();
+
+            var vm = speakers
                 .OrderBy(s => s.LastName)
+                .ThenBy(s => s.FirstName)
                 .Select(s => new SpeakerListViewModel
                 {
                     SpeakerId = s.SpeakerId,
@@ -26,9 +28,10 @@ namespace SmartEventPlatformWeb.Controllers
                     LastName = s.LastName,
                     Title = s.Title,
                     ExpertiseAreas = s.ExpertiseAreas
-                }).ToListAsync();
+                })
+                .ToList();
 
-            return View(speakers);
+            return View(vm);
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -38,34 +41,35 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Speakers
-                .Include(s => s.EventSpeakers)
-                .ThenInclude(es => es.Event)
-                .Include(s => s.EventSpeakers)
-                .Where(s => s.SpeakerId == id)
-                .Select(s => new SpeakerDetailsViewModel
-                {
-                    SpeakerId = s.SpeakerId,
-                    FirstName = s.FirstName,
-                    LastName = s.LastName,
-                    Title = s.Title,
-                    ExpertiseAreas = s.ExpertiseAreas,
-                    EventSpeakersParticipations = s.EventSpeakers
+            var speaker = await _eventApiClient.GetSpeakerByIdAsync(id.Value);
+
+            if (speaker == null)
+            {
+                return NotFound();
+            }
+
+            var eventSpeakers = await _eventApiClient.GetEventSpeakersAsync();
+
+            var vm = new SpeakerDetailsViewModel
+            {
+                SpeakerId = speaker.SpeakerId,
+                FirstName = speaker.FirstName,
+                LastName = speaker.LastName,
+                Title = speaker.Title,
+                ExpertiseAreas = speaker.ExpertiseAreas,
+                EventSpeakersParticipations = eventSpeakers
+                    .Where(es => es.SpeakerId == speaker.SpeakerId)
                     .OrderBy(es => es.Time)
                     .Select(es => new SpeakerEventItemViewModel
                     {
                         EventSpeakerId = es.EventSpeakerId,
                         EventId = es.EventId,
-                        EventName = es.Event!.EventName,
+                        EventName = es.EventName,
                         Topic = es.Topic,
                         Time = es.Time
-                    }).ToList()
-                }).FirstOrDefaultAsync();
-
-            if (vm == null)
-            {
-                return NotFound();
-            }
+                    })
+                    .ToList()
+            };
 
             return View(vm);
         }
@@ -83,16 +87,25 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
-            var speaker = new Speaker
+
+            var dto = new SpeakerDto
             {
                 FirstName = vm.FirstName,
                 LastName = vm.LastName,
                 Title = vm.Title,
                 ExpertiseAreas = vm.ExpertiseAreas
             };
-            _context.Add(speaker);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                await _eventApiClient.CreateSpeakerAsync(dto);
+                return RedirectToAction(nameof(Index));
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
+            }
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -102,11 +115,13 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var speaker = await _context.Speakers.FindAsync(id);
+            var speaker = await _eventApiClient.GetSpeakerByIdAsync(id.Value);
+
             if (speaker == null)
             {
                 return NotFound();
             }
+
             var vm = new SpeakerEditViewModel
             {
                 SpeakerId = speaker.SpeakerId,
@@ -115,6 +130,7 @@ namespace SmartEventPlatformWeb.Controllers
                 Title = speaker.Title,
                 ExpertiseAreas = speaker.ExpertiseAreas
             };
+
             return View(vm);
         }
 
@@ -131,35 +147,26 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
+
+            var dto = new SpeakerDto
+            {
+                SpeakerId = vm.SpeakerId,
+                FirstName = vm.FirstName,
+                LastName = vm.LastName,
+                Title = vm.Title,
+                ExpertiseAreas = vm.ExpertiseAreas
+            };
+
             try
             {
-                var speaker = await _context.Speakers.FindAsync(id);
-                if (speaker == null)
-                {
-                    return NotFound();
-                }
-
-                speaker.FirstName = vm.FirstName;
-                speaker.LastName = vm.LastName;
-                speaker.Title = vm.Title;
-                speaker.ExpertiseAreas = vm.ExpertiseAreas;
-
-                _context.Update(speaker);
-                await _context.SaveChangesAsync();
+                await _eventApiClient.UpdateSpeakerAsync(id, dto);
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (HttpRequestException ex)
             {
-                if (!SpeakerExists(vm.SpeakerId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
             }
-            return RedirectToAction(nameof(Index));
-
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -169,21 +176,14 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Speakers
-                .Where(s => s.SpeakerId == id)
-                .Select(s => new SpeakerDeleteViewModel
-                {
-                    SpeakerId = s.SpeakerId,
-                    FirstName = s.FirstName,
-                    LastName = s.LastName,
-                    Title = s.Title,
-                    ExpertiseAreas = s.ExpertiseAreas
-                }).FirstOrDefaultAsync();
+            var speaker = await _eventApiClient.GetSpeakerByIdAsync(id.Value);
 
-            if (vm == null)
+            if (speaker == null)
             {
                 return NotFound();
             }
+
+            var vm = MapToDeleteViewModel(speaker);
 
             return View(vm);
         }
@@ -192,47 +192,29 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var speaker = await _context.Speakers.FindAsync(id);
+            var speaker = await _eventApiClient.GetSpeakerByIdAsync(id);
 
             if (speaker == null)
             {
                 return NotFound();
             }
 
-            if (await SpeakerHasDependenciesAsync(id))
-            {
-                return ReturnSpeakerDeleteViewWithError(
-                    speaker,
-                    "This speaker cannot be deleted because they are assigned to one or more events.");
-            }
-
             try
             {
-                _context.Speakers.Remove(speaker);
-                await _context.SaveChangesAsync();
-
+                await _eventApiClient.DeleteSpeakerAsync(id);
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (HttpRequestException ex)
             {
-                return ReturnSpeakerDeleteViewWithError(
-                    speaker,
-                    "This speaker cannot be deleted because they are used by other records.");
+                ModelState.AddModelError(string.Empty, ex.Message);
+
+                var vm = MapToDeleteViewModel(speaker);
+
+                return View("Delete", vm);
             }
         }
 
-        private bool SpeakerExists(long id)
-        {
-            return _context.Speakers.Any(s => s.SpeakerId == id);
-        }
-
-        private async Task<bool> SpeakerHasDependenciesAsync(long speakerId)
-        {
-            return await _context.EventSpeakers
-                .AnyAsync(es => es.SpeakerId == speakerId);
-        }
-
-        private static SpeakerDeleteViewModel MapToDeleteViewModel(Speaker speaker)
+        private static SpeakerDeleteViewModel MapToDeleteViewModel(SpeakerDto speaker)
         {
             return new SpeakerDeleteViewModel
             {
@@ -242,15 +224,6 @@ namespace SmartEventPlatformWeb.Controllers
                 Title = speaker.Title,
                 ExpertiseAreas = speaker.ExpertiseAreas
             };
-        }
-
-        private IActionResult ReturnSpeakerDeleteViewWithError(Speaker speaker, string errorMessage)
-        {
-            ModelState.AddModelError(string.Empty, errorMessage);
-
-            var vm = MapToDeleteViewModel(speaker);
-
-            return View("Delete", vm);
         }
     }
 }

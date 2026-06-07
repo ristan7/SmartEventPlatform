@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.Participants;
 using SmartEventPlatform.RegistrationService.Data;
-using SmartEventPlatformWeb.RegistrationService.Models;
+using SmartEventPlatform.RegistrationService.Models;
 
 namespace SmartEventPlatform.RegistrationService.Controllers
 {

@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.RegistrationService.Models;
+using SmartEventPlatform.RegistrationService.Models;
 
 namespace SmartEventPlatform.RegistrationService.Data
 {

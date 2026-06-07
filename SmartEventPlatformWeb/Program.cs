@@ -1,5 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
+using SmartEventPlatformWeb.Services;
 
 namespace SmartEventPlatformWeb
 {
@@ -10,8 +9,24 @@ namespace SmartEventPlatformWeb
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
+
+            builder.Services.AddHttpClient("EventService", client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
+                client.Timeout = TimeSpan.FromSeconds(5);
+            });
+
+            builder.Services.AddHttpClient("RegistrationService", client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:RegistrationService"]!);
+                client.Timeout = TimeSpan.FromSeconds(5);
+            });
+
+            builder.Services.AddScoped<IEventApiClient, EventApiClient>();
+            builder.Services.AddScoped<IRegistrationApiClient, RegistrationApiClient>();
+
             builder.Services.AddControllersWithViews();
-            builder.Services.AddDbContext<SmartPlatformDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 
             var app = builder.Build();
 

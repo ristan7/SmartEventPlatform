@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.Services;
-using SmartEventPlatformWeb.EventService.Models;
+using SmartEventPlatform.EventService.Models;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
