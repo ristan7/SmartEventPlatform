@@ -1,6 +1,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.EventService.Data;
+using SmartEventPlatform.EventService.Services;
 
 namespace SmartEventPlatform.EventService
 {
@@ -14,6 +15,11 @@ namespace SmartEventPlatform.EventService
 
             builder.Services.AddDbContext<EventDbContext>(options =>
                     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            builder.Services.AddHttpClient<IRegistrationServiceClient, RegistrationServiceClient>(client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["RegistrationServiceEndpoint"]!);
+                client.Timeout = TimeSpan.FromSeconds(5);
+            });
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();

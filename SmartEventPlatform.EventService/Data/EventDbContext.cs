@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatformWeb.EventService.Models;
 
 namespace SmartEventPlatform.EventService.Data
 {

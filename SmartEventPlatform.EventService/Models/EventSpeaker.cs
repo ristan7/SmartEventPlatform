@@ -1,4 +1,4 @@
-﻿namespace SmartEventPlatformWeb.Domains
+﻿namespace SmartEventPlatformWeb.EventService.Models
 {
     public class EventSpeaker
     {
