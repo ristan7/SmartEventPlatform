@@ -14,6 +14,8 @@ namespace SmartEventPlatform.EventService.Controllers
         private readonly EventDbContext _context;
         private readonly IRegistrationServiceClient _registrationServiceClient;
 
+        //private static int _counter = 0;
+
         public EventsController(EventDbContext context, IRegistrationServiceClient registrationServiceClient)
         {
             _context = context;
@@ -104,6 +106,17 @@ namespace SmartEventPlatform.EventService.Controllers
         [HttpGet("{id:long}/registration-info")]
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
+            //_counter++;
+
+            //if (_counter % 3 != 0)
+            //{
+            //    return StatusCode(500, "Simulated temporary EventService error.");
+            //}
+
+            //await Task.Delay(10000);
+
+            //return StatusCode(500, "Simulated EventService failure.");
+
             var dto = await _context.Events
                 .Include(e => e.Location)
                 .Where(e => e.EventId == id)
