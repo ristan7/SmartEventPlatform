@@ -1,4 +1,11 @@
 
+using Microsoft.EntityFrameworkCore;
+using Polly;
+using Polly.Extensions.Http;
+using SmartEventPlatform.RegistrationService.Data;
+using SmartEventPlatform.RegistrationService.Patterns;
+using SmartEventPlatform.RegistrationService.Services;
+
 namespace SmartEventPlatform.RegistrationService
 {
     public class Program
@@ -9,16 +16,31 @@ namespace SmartEventPlatform.RegistrationService
 
             // Add services to the container.
 
+            builder.Services.AddDbContext<RegistrationDbContext>(options =>
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            builder.Services.AddSingleton<CircuitBreaker>(sp =>
+                new CircuitBreaker(3, TimeSpan.FromSeconds(15))
+            );
+
+            builder.Services.AddHttpClient("EventService", client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(3);
+                client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("EventServiceEndpoint")!);
+            });
+
             builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-            builder.Services.AddOpenApi();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.MapOpenApi();
+                app.UseSwagger();
+                app.UseSwaggerUI();
             }
 
             app.UseHttpsRedirection();
