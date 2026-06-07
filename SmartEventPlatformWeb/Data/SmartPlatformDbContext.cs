@@ -88,12 +88,12 @@ namespace SmartEventPlatformWeb.Data
                 entity.HasOne(es => es.Event)
                     .WithMany(ev => ev.EventSpeakers)
                     .HasForeignKey(es => es.EventId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(es => es.Speaker)
                     .WithMany(s => s.EventSpeakers)
                     .HasForeignKey(es => es.SpeakerId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
 
             });
 
@@ -106,12 +106,12 @@ namespace SmartEventPlatformWeb.Data
                 entity.HasOne(r => r.Event)
                     .WithMany(e => e.Registrations)
                     .HasForeignKey(r => r.EventId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(r => r.Participant)
                     .WithMany(p => p.Registrations)
                     .HasForeignKey(r => r.ParticipantId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasIndex(r => new { r.EventId, r.ParticipantId }).IsUnique();
             });
