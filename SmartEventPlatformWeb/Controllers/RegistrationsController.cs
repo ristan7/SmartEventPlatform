@@ -97,7 +97,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             if (alreadyRegistered)
             {
-                ModelState.AddModelError(string.Empty, "This participant is already registered for the selected registration.");
+                ModelState.AddModelError(string.Empty, "This participant is already registered for the selected event.");
 
                 vm.Events = await GetEventsSelectListAsync();
                 vm.Participants = await GetParticipantsSelectListAsync();
