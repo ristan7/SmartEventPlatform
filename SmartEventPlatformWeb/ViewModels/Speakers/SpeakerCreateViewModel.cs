@@ -12,7 +12,7 @@ namespace SmartEventPlatformWeb.ViewModels.Speakers
         [StringLength(100, ErrorMessage = "Last name cannot be longer than 100 characters.")]
         public string LastName { get; set; } = string.Empty;
 
-        [StringLength(150, ErrorMessage = "Title cannot be longer than 100 characters.")]
+        [StringLength(150, ErrorMessage = "Title cannot be longer than 150 characters.")]
         public string Title { get; set; } = string.Empty;
 
         [StringLength(500, ErrorMessage = "Expertise areas cannot be longer than 500 characters.")]
