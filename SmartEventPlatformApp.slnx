@@ -1,3 +1,6 @@
 <Solution>
+  <Project Path="SmartEventPlatform.Contracts/SmartEventPlatform.Contracts.csproj" Id="ea6f8ce1-1a05-43e3-b9d2-4b287bd0d80c" />
+  <Project Path="SmartEventPlatform.EventService/SmartEventPlatform.EventService.csproj" Id="9c5319b0-a8ee-40c4-911b-39f5b4be6653" />
+  <Project Path="SmartEventPlatform.RegistrationService/SmartEventPlatform.RegistrationService.csproj" Id="86371c3b-fd87-4b96-8adb-e9e2e5425834" />
   <Project Path="SmartEventPlatformWeb/SmartEventPlatformWeb.csproj" />
 </Solution>
