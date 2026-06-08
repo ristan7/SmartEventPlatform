@@ -17,19 +17,36 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var client = CreateEventServiceClient();
-            var eventTypes = await GetListAsync<EventTypeDto>(client, "api/eventtypes");
+            try
+            {
+                var client = CreateEventServiceClient();
+                var eventTypes = await GetListAsync<EventTypeDto>(client, "api/eventtypes");
 
-            var vm = eventTypes
-                .OrderBy(t => t.Name)
-                .Select(t => new EventTypeListViewModel
-                {
-                    EventTypeId = t.EventTypeId,
-                    Name = t.Name
-                })
-                .ToList();
+                var vm = eventTypes
+                    .OrderBy(t => t.Name)
+                    .Select(t => new EventTypeListViewModel
+                    {
+                        EventTypeId = t.EventTypeId,
+                        Name = t.Name
+                    })
+                    .ToList();
 
-            return View(vm);
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading event types. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading event types.");
+            }
+
+            return View(new List<EventTypeListViewModel>());
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -39,21 +56,38 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateEventServiceClient();
-            var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
-
-            if (eventType == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
+
+                if (eventType == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new EventTypeDetailsViewModel
+                {
+                    EventTypeId = eventType.EventTypeId,
+                    Name = eventType.Name
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading event type details. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading event type details.");
             }
 
-            var vm = new EventTypeDetailsViewModel
-            {
-                EventTypeId = eventType.EventTypeId,
-                Name = eventType.Name
-            };
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         public IActionResult Create()
@@ -82,11 +116,20 @@ namespace SmartEventPlatformWeb.Controllers
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while creating the event type. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-                return View(vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the event type.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -96,21 +139,38 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateEventServiceClient();
-            var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
-
-            if (eventType == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
+
+                if (eventType == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new EventTypeEditViewModel
+                {
+                    EventTypeId = eventType.EventTypeId,
+                    Name = eventType.Name
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the event type. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the event type.");
             }
 
-            var vm = new EventTypeEditViewModel
-            {
-                EventTypeId = eventType.EventTypeId,
-                Name = eventType.Name
-            };
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -140,11 +200,20 @@ namespace SmartEventPlatformWeb.Controllers
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while updating the event type. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-                return View(vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the event type.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -154,45 +223,77 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateEventServiceClient();
-            var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
-
-            if (eventType == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
+
+                if (eventType == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = MapToDeleteViewModel(eventType);
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the event type. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the event type.");
             }
 
-            var vm = MapToDeleteViewModel(eventType);
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var client = CreateEventServiceClient();
-            var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id}");
-
-            if (eventType == null)
-            {
-                return NotFound();
-            }
+            EventTypeDto? eventType = null;
 
             try
             {
+                var client = CreateEventServiceClient();
+
+                eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id}");
+
+                if (eventType == null)
+                {
+                    return NotFound();
+                }
+
                 await DeleteAsync(client, $"api/eventtypes/{id}");
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while deleting the event type. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-
-                var vm = MapToDeleteViewModel(eventType);
-
-                return View("Delete", vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the event type.");
+            }
+
+            if (eventType == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
+            var vm = MapToDeleteViewModel(eventType);
+            return View("Delete", vm);
         }
 
         private static EventTypeDeleteViewModel MapToDeleteViewModel(EventTypeDto eventType)

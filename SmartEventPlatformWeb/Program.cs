@@ -12,13 +12,13 @@ namespace SmartEventPlatformWeb
             builder.Services.AddHttpClient("EventService", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
-                client.Timeout = TimeSpan.FromSeconds(5);
+                client.Timeout = TimeSpan.FromSeconds(15);
             });
 
             builder.Services.AddHttpClient("RegistrationService", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:RegistrationService"]!);
-                client.Timeout = TimeSpan.FromSeconds(5);
+                client.Timeout = TimeSpan.FromSeconds(15);
             });
 
 

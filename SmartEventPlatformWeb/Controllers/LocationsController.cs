@@ -17,21 +17,38 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var client = CreateEventServiceClient();
-            var locations = await GetListAsync<LocationDto>(client, "api/locations");
+            try
+            {
+                var client = CreateEventServiceClient();
+                var locations = await GetListAsync<LocationDto>(client, "api/locations");
 
-            var vm = locations
-                .OrderBy(l => l.LocationName)
-                .Select(l => new LocationListViewModel
-                {
-                    LocationId = l.LocationId,
-                    LocationName = l.LocationName,
-                    Address = l.Address,
-                    Capacity = l.Capacity
-                })
-                .ToList();
+                var vm = locations
+                    .OrderBy(l => l.LocationName)
+                    .Select(l => new LocationListViewModel
+                    {
+                        LocationId = l.LocationId,
+                        LocationName = l.LocationName,
+                        Address = l.Address,
+                        Capacity = l.Capacity
+                    })
+                    .ToList();
 
-            return View(vm);
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading locations. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading locations.");
+            }
+
+            return View(new List<LocationListViewModel>());
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -41,23 +58,40 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateEventServiceClient();
-            var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
-
-            if (location == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+
+                if (location == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new LocationDetailsViewModel
+                {
+                    LocationId = location.LocationId,
+                    LocationName = location.LocationName,
+                    Address = location.Address,
+                    Capacity = location.Capacity
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading location details. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading location details.");
             }
 
-            var vm = new LocationDetailsViewModel
-            {
-                LocationId = location.LocationId,
-                LocationName = location.LocationName,
-                Address = location.Address,
-                Capacity = location.Capacity
-            };
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         public IActionResult Create()
@@ -88,11 +122,20 @@ namespace SmartEventPlatformWeb.Controllers
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while creating the location. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-                return View(vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the location.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -102,23 +145,40 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateEventServiceClient();
-            var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
-
-            if (location == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+
+                if (location == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new LocationEditViewModel
+                {
+                    LocationId = location.LocationId,
+                    LocationName = location.LocationName,
+                    Address = location.Address,
+                    Capacity = location.Capacity
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the location. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the location.");
             }
 
-            var vm = new LocationEditViewModel
-            {
-                LocationId = location.LocationId,
-                LocationName = location.LocationName,
-                Address = location.Address,
-                Capacity = location.Capacity
-            };
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -150,11 +210,20 @@ namespace SmartEventPlatformWeb.Controllers
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while updating the location. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-                return View(vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the location.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -164,44 +233,77 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateEventServiceClient();
-            var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
-
-            if (location == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+
+                if (location == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = MapToDeleteViewModel(location);
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the location. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the location.");
             }
 
-            var vm = MapToDeleteViewModel(location);
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var client = CreateEventServiceClient();
-            var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
-
-            if (location == null)
-            {
-                return NotFound();
-            }
+            LocationDto? location = null;
 
             try
             {
+                var client = CreateEventServiceClient();
+
+                location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
+
+                if (location == null)
+                {
+                    return NotFound();
+                }
+
                 await DeleteAsync(client, $"api/locations/{id}");
+
                 return RedirectToAction(nameof(Index));
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while deleting the location. Please try again.");
             }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-
-                var vm = MapToDeleteViewModel(location);
-
-                return View("Delete", vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the location.");
+            }
+
+            if (location == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
+            var vm = MapToDeleteViewModel(location);
+            return View("Delete", vm);
         }
 
         private HttpClient CreateEventServiceClient()

@@ -6,14 +6,14 @@
 
 <h1>Delete Participant</h1>
 
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
 <h3>Are you sure you want to delete this?</h3>
 <div>
     <h4>@Model.FirstName @Model.LastName</h4>
 </div>
 
 <form asp-action="Delete" method="post">
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-
     <input type="hidden" asp-for="ParticipantId" />
     <div class="form-group">
         <input type="submit" value="Delete" class="btn btn-danger" />

@@ -16,12 +16,14 @@ namespace SmartEventPlatform.EventService.Controllers
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly CircuitBreaker _circuitBreaker;
 
-        //private static int _counter = 0;
+        // Use this only for manual retry testing.
+        // Keep simulation code commented during normal application testing.
+        private static int _counter = 0;
 
         public EventsController(
-    EventDbContext context,
-    IHttpClientFactory httpClientFactory,
-    CircuitBreaker circuitBreaker)
+            EventDbContext context,
+            IHttpClientFactory httpClientFactory,
+            CircuitBreaker circuitBreaker)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
@@ -112,6 +114,10 @@ namespace SmartEventPlatform.EventService.Controllers
         [HttpGet("{id:long}/registration-info")]
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
+            // Retry test simulation.
+            // Uncomment only when you are testing Polly retry.
+            // First two calls fail, third call succeeds.
+
             //_counter++;
 
             //if (_counter % 3 != 0)
@@ -119,8 +125,13 @@ namespace SmartEventPlatform.EventService.Controllers
             //    return StatusCode(500, "Simulated temporary EventService error.");
             //}
 
+
+            // Timeout test simulation.
+            // Uncomment only when you are testing timeout.
             //await Task.Delay(10000);
 
+            // Circuit breaker test simulation.
+            // Uncomment only when you are testing circuit breaker.
             //return StatusCode(500, "Simulated EventService failure.");
 
             var dto = await _context.Events
@@ -275,12 +286,11 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(eventDto);
         }
 
-
         [HttpDelete("{id:long}")]
         public async Task<IActionResult> Delete(long id)
         {
             var existingEvent = await _context.Events
-                .Include(e => e.Location)
+                .Include(e => e.EventSpeakers)
                 .FirstOrDefaultAsync(e => e.EventId == id);
 
             if (existingEvent == null)
@@ -288,12 +298,13 @@ namespace SmartEventPlatform.EventService.Controllers
                 return NotFound();
             }
 
-            var hasAssignedSpeakers = await _context.EventSpeakers
-                .AnyAsync(es => es.EventId == id);
+            var deleteErrors = new List<string>();
+
+            var hasAssignedSpeakers = existingEvent.EventSpeakers.Any();
 
             if (hasAssignedSpeakers)
             {
-                return BadRequest("This event cannot be deleted because it has assigned speakers.");
+                deleteErrors.Add("This event cannot be deleted because it has assigned speakers.");
             }
 
             try
@@ -302,7 +313,7 @@ namespace SmartEventPlatform.EventService.Controllers
 
                 if (hasRegistrations)
                 {
-                    return BadRequest("This event cannot be deleted because it has participant registrations.");
+                    deleteErrors.Add("This event cannot be deleted because it has participant registrations.");
                 }
             }
             catch (CircuitBreakerOpenException)
@@ -322,6 +333,11 @@ namespace SmartEventPlatform.EventService.Controllers
                 return StatusCode(500, "An unexpected error occurred while communicating with RegistrationService.");
             }
 
+            if (deleteErrors.Any())
+            {
+                return BadRequest(string.Join(" ", deleteErrors));
+            }
+
             try
             {
                 _context.Events.Remove(existingEvent);
@@ -335,7 +351,6 @@ namespace SmartEventPlatform.EventService.Controllers
             }
         }
 
-
         private async Task<bool> EventHasRegistrationsWithCircuitBreakerAndRetryAsync(long eventId)
         {
             return await _circuitBreaker.ExecuteAsync(async () =>
@@ -348,18 +363,19 @@ namespace SmartEventPlatform.EventService.Controllers
         {
             var registrationServiceHttpClient = _httpClientFactory.CreateClient("RegistrationService");
 
-            HttpResponseMessage? httpResponseMessage = null;
-
             var retryPolicy = Polly.Policy
-    .Handle<HttpRequestException>()
-    .Or<TaskCanceledException>()
-    .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
+                .Handle<HttpRequestException>()
+                .Or<TaskCanceledException>()
+                .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
 
-            httpResponseMessage = await retryPolicy.ExecuteAsync<HttpResponseMessage>(async () =>
+            var httpResponseMessage = await retryPolicy.ExecuteAsync(async () =>
             {
-                httpResponseMessage = await registrationServiceHttpClient.GetAsync($"/api/registrations/exists-for-event/{eventId}");
-                httpResponseMessage.EnsureSuccessStatusCode();
-                return httpResponseMessage;
+                var response = await registrationServiceHttpClient
+                    .GetAsync($"/api/registrations/exists-for-event/{eventId}");
+
+                response.EnsureSuccessStatusCode();
+
+                return response;
             });
 
             var result = await httpResponseMessage.Content.ReadFromJsonAsync<bool>();

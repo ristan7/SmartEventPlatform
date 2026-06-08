@@ -17,22 +17,39 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var client = CreateRegistrationServiceClient();
-            var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
+            try
+            {
+                var client = CreateRegistrationServiceClient();
+                var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
 
-            var vm = participants
-                .OrderBy(p => p.LastName)
-                .ThenBy(p => p.FirstName)
-                .Select(p => new ParticipantListViewModel
-                {
-                    ParticipantId = p.ParticipantId,
-                    FirstName = p.FirstName,
-                    LastName = p.LastName,
-                    Email = p.Email
-                })
-                .ToList();
+                var vm = participants
+                    .OrderBy(p => p.LastName)
+                    .ThenBy(p => p.FirstName)
+                    .Select(p => new ParticipantListViewModel
+                    {
+                        ParticipantId = p.ParticipantId,
+                        FirstName = p.FirstName,
+                        LastName = p.LastName,
+                        Email = p.Email
+                    })
+                    .ToList();
 
-            return View(vm);
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading participants. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading participants.");
+            }
+
+            return View(new List<ParticipantListViewModel>());
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -42,23 +59,40 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateRegistrationServiceClient();
-            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
-
-            if (participant == null)
+            try
             {
-                return NotFound();
+                var client = CreateRegistrationServiceClient();
+                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new ParticipantDetailsViewModel
+                {
+                    ParticipantId = participant.ParticipantId,
+                    FirstName = participant.FirstName,
+                    LastName = participant.LastName,
+                    Email = participant.Email
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading participant details. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading participant details.");
             }
 
-            var vm = new ParticipantDetailsViewModel
-            {
-                ParticipantId = participant.ParticipantId,
-                FirstName = participant.FirstName,
-                LastName = participant.LastName,
-                Email = participant.Email
-            };
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         public IActionResult Create()
@@ -89,11 +123,20 @@ namespace SmartEventPlatformWeb.Controllers
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while creating the participant. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-                return View(vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the participant.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -103,23 +146,40 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateRegistrationServiceClient();
-            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
-
-            if (participant == null)
+            try
             {
-                return NotFound();
+                var client = CreateRegistrationServiceClient();
+                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new ParticipantEditViewModel
+                {
+                    ParticipantId = participant.ParticipantId,
+                    FirstName = participant.FirstName,
+                    LastName = participant.LastName,
+                    Email = participant.Email
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the participant. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the participant.");
             }
 
-            var vm = new ParticipantEditViewModel
-            {
-                ParticipantId = participant.ParticipantId,
-                FirstName = participant.FirstName,
-                LastName = participant.LastName,
-                Email = participant.Email
-            };
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -151,11 +211,20 @@ namespace SmartEventPlatformWeb.Controllers
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while updating the participant. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-                return View(vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the participant.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -165,45 +234,77 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var client = CreateRegistrationServiceClient();
-            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
-
-            if (participant == null)
+            try
             {
-                return NotFound();
+                var client = CreateRegistrationServiceClient();
+                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = MapToDeleteViewModel(participant);
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the participant. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the participant.");
             }
 
-            var vm = MapToDeleteViewModel(participant);
-
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var client = CreateRegistrationServiceClient();
-            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
-
-            if (participant == null)
-            {
-                return NotFound();
-            }
+            ParticipantDto? participant = null;
 
             try
             {
+                var client = CreateRegistrationServiceClient();
+
+                participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
                 await DeleteAsync(client, $"api/participants/{id}");
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while deleting the participant. Please try again.");
+            }
             catch (HttpRequestException ex)
             {
                 ModelState.AddModelError(string.Empty, ex.Message);
-
-                var vm = MapToDeleteViewModel(participant);
-
-                return View("Delete", vm);
             }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the participant.");
+            }
+
+            if (participant == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
+            var vm = MapToDeleteViewModel(participant);
+            return View("Delete", vm);
         }
 
         private static ParticipantDeleteViewModel MapToDeleteViewModel(ParticipantDto participant)

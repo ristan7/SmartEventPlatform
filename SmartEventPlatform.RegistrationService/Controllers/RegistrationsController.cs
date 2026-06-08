@@ -161,7 +161,7 @@ public class RegistrationsController : ControllerBase
                 return BadRequest("This participant is already registered for the selected event.");
             }
 
-            var capacityReached = await IsEventCapacityReached(dto.EventId);
+            var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity);
 
             if (capacityReached)
             {
@@ -243,7 +243,7 @@ public class RegistrationsController : ControllerBase
                 return BadRequest("This participant is already registered for the selected event.");
             }
 
-            var capacityReached = await IsEventCapacityReached(dto.EventId, id);
+            var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity, id);
 
             if (capacityReached)
             {
@@ -397,16 +397,10 @@ public class RegistrationsController : ControllerBase
     }
 
     private async Task<bool> IsEventCapacityReached(
-        long eventId,
-        long? registrationIdToExclude = null)
+    long eventId,
+    int capacity,
+    long? registrationIdToExclude = null)
     {
-        var eventInfo = await GetEventRegistrationInfoWithCircuitBreakerAndRetryAsync(eventId);
-
-        if (!eventInfo.Exists)
-        {
-            return false;
-        }
-
         var registrationsQuery = _context.Registrations
             .Where(r => r.EventId == eventId);
 
@@ -418,7 +412,7 @@ public class RegistrationsController : ControllerBase
 
         var currentRegistrationCount = await registrationsQuery.CountAsync();
 
-        return currentRegistrationCount >= eventInfo.Capacity;
+        return currentRegistrationCount >= capacity;
     }
 
     private async Task<EventRegistrationInfoDto> GetEventRegistrationInfoWithCircuitBreakerAndRetryAsync(long eventId)
