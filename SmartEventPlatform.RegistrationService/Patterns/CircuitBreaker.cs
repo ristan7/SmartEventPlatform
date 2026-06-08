@@ -1,4 +1,4 @@
-﻿namespace SmartEventPlatform.EventService.Patterns;
+﻿namespace SmartEventPlatform.RegistrationService.Patterns;
 
 public enum CircuitBreakerState
 {
@@ -46,7 +46,7 @@ public class CircuitBreaker
         if (State == CircuitBreakerState.Open)
         {
             throw new CircuitBreakerOpenException(
-                "CircuitBreaker is open. RegistrationService is temporarily unavailable.");
+    "CircuitBreaker is open. EventService is temporarily unavailable.");
         }
 
         try

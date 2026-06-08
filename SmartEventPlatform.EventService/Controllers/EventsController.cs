@@ -2,8 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.EventService.Data;
-using SmartEventPlatform.EventService.Services;
 using SmartEventPlatform.EventService.Models;
+using SmartEventPlatform.EventService.Patterns;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
@@ -12,14 +12,19 @@ namespace SmartEventPlatform.EventService.Controllers
     public class EventsController : ControllerBase
     {
         private readonly EventDbContext _context;
-        private readonly IRegistrationServiceClient _registrationServiceClient;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly CircuitBreaker _circuitBreaker;
 
         //private static int _counter = 0;
 
-        public EventsController(EventDbContext context, IRegistrationServiceClient registrationServiceClient)
+        public EventsController(
+    EventDbContext context,
+    IHttpClientFactory httpClientFactory,
+    CircuitBreaker circuitBreaker)
         {
             _context = context;
-            _registrationServiceClient = registrationServiceClient;
+            _httpClientFactory = httpClientFactory;
+            _circuitBreaker = circuitBreaker;
         }
 
         [HttpGet]
@@ -132,7 +137,7 @@ namespace SmartEventPlatform.EventService.Controllers
 
             if (dto == null)
             {
-                return NotFound(new EventRegistrationInfoDto
+                return Ok(new EventRegistrationInfoDto
                 {
                     EventId = id,
                     Exists = false
@@ -290,11 +295,26 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest("This event cannot be deleted because it has assigned speakers.");
             }
 
-            var hasRegistrations = await _registrationServiceClient.EventHasRegistrationsAsync(id);
-
-            if (hasRegistrations)
+            try
             {
-                return BadRequest("This event cannot be deleted because it has participant registrations.");
+                var hasRegistrations = await EventHasRegistrationsWithCircuitBreakerAndRetryAsync(id);
+
+                if (hasRegistrations)
+                {
+                    return BadRequest("This event cannot be deleted because it has participant registrations.");
+                }
+            }
+            catch (CircuitBreakerOpenException)
+            {
+                return StatusCode(503, "Event cannot be deleted because RegistrationService circuit breaker is open.");
+            }
+            catch (TaskCanceledException)
+            {
+                return StatusCode(504, "Event cannot be deleted because RegistrationService timeout expired.");
+            }
+            catch (HttpRequestException)
+            {
+                return StatusCode(503, "Event cannot be deleted because RegistrationService is unavailable after retry attempts.");
             }
 
             try
@@ -308,6 +328,67 @@ namespace SmartEventPlatform.EventService.Controllers
             {
                 return BadRequest("This event cannot be deleted because it is used by other records.");
             }
+        }
+
+
+        private async Task<bool> EventHasRegistrationsWithCircuitBreakerAndRetryAsync(long eventId)
+        {
+            return await _circuitBreaker.ExecuteAsync(async () =>
+            {
+                return await EventHasRegistrationsWithManualRetryAsync(eventId);
+            });
+        }
+
+        private async Task<bool> EventHasRegistrationsWithManualRetryAsync(long eventId)
+        {
+            var client = _httpClientFactory.CreateClient("RegistrationService");
+
+            const int maxAttempts = 3;
+            var delayBetweenAttempts = TimeSpan.FromMilliseconds(250);
+
+            Exception? lastException = null;
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    var response = await client.GetAsync($"/api/registrations/exists-for-event/{eventId}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = await response.Content.ReadFromJsonAsync<bool>();
+                        return result;
+                    }
+
+                    lastException = new HttpRequestException(
+                        $"RegistrationService returned status code {(int)response.StatusCode} on attempt {attempt}.");
+
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(delayBetweenAttempts);
+                    }
+                }
+                catch (TaskCanceledException ex)
+                {
+                    lastException = ex;
+
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(delayBetweenAttempts);
+                    }
+                }
+                catch (HttpRequestException ex)
+                {
+                    lastException = ex;
+
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(delayBetweenAttempts);
+                    }
+                }
+            }
+
+            throw lastException ?? new HttpRequestException("RegistrationService request failed after retry attempts.");
         }
 
         private async Task<bool> EventExistsAsync(long id)

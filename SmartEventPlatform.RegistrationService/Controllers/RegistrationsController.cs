@@ -16,6 +16,8 @@ public class RegistrationsController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly CircuitBreaker _circuitBreaker;
 
+    //private static int _existsForEventCounter = 0;
+
     public RegistrationsController(RegistrationDbContext context, IHttpClientFactory httpClientFactory, CircuitBreaker circuitBreaker)
     {
         _context = context;
@@ -335,6 +337,15 @@ public class RegistrationsController : ControllerBase
     [HttpGet("exists-for-event/{eventId:long}")]
     public async Task<ActionResult<bool>> ExistsForEvent(long eventId)
     {
+        //_existsForEventCounter++;
+
+        //if (_existsForEventCounter % 3 != 0)
+        //{
+        //    return StatusCode(500, "Simulated temporary RegistrationService error.");
+        //}
+
+        //await Task.Delay(10000);
+
         var exists = await _context.Registrations
             .AnyAsync(r => r.EventId == eventId);
 

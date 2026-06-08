@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.Patterns;
-using SmartEventPlatform.EventService.Services;
 
 namespace SmartEventPlatform.EventService
 {
@@ -20,7 +19,7 @@ namespace SmartEventPlatform.EventService
             builder.Services.AddSingleton<CircuitBreaker>(sp =>
                 new CircuitBreaker(3, TimeSpan.FromSeconds(15)));
 
-            builder.Services.AddHttpClient<IRegistrationServiceClient, RegistrationServiceClient>(client =>
+            builder.Services.AddHttpClient("RegistrationService", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["RegistrationServiceEndpoint"]!);
                 client.Timeout = TimeSpan.FromSeconds(3);

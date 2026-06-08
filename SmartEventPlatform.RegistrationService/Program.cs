@@ -1,10 +1,7 @@
 
 using Microsoft.EntityFrameworkCore;
-using Polly;
-using Polly.Extensions.Http;
 using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.Patterns;
-using SmartEventPlatform.RegistrationService.Services;
 
 namespace SmartEventPlatform.RegistrationService
 {

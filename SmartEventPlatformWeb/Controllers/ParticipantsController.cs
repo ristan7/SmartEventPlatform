@@ -1,22 +1,24 @@
 using Microsoft.AspNetCore.Mvc;
 using SmartEventPlatform.Contracts.Participants;
-using SmartEventPlatformWeb.Services;
 using SmartEventPlatformWeb.ViewModels.Participants;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class ParticipantsController : Controller
     {
-        private readonly IRegistrationApiClient _registrationApiClient;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public ParticipantsController(IRegistrationApiClient registrationApiClient)
+        public ParticipantsController(IHttpClientFactory httpClientFactory)
         {
-            _registrationApiClient = registrationApiClient;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<IActionResult> Index()
         {
-            var participants = await _registrationApiClient.GetParticipantsAsync();
+            var client = CreateRegistrationServiceClient();
+            var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
 
             var vm = participants
                 .OrderBy(p => p.LastName)
@@ -40,7 +42,8 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var participant = await _registrationApiClient.GetParticipantByIdAsync(id.Value);
+            var client = CreateRegistrationServiceClient();
+            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
 
             if (participant == null)
             {
@@ -81,7 +84,9 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                await _registrationApiClient.CreateParticipantAsync(dto);
+                var client = CreateRegistrationServiceClient();
+                await PostAndReadIdAsync(client, "api/participants", dto);
+
                 return RedirectToAction(nameof(Index));
             }
             catch (HttpRequestException ex)
@@ -98,7 +103,8 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var participant = await _registrationApiClient.GetParticipantByIdAsync(id.Value);
+            var client = CreateRegistrationServiceClient();
+            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
 
             if (participant == null)
             {
@@ -140,7 +146,9 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                await _registrationApiClient.UpdateParticipantAsync(id, dto);
+                var client = CreateRegistrationServiceClient();
+                await PutAsync(client, $"api/participants/{id}", dto);
+
                 return RedirectToAction(nameof(Index));
             }
             catch (HttpRequestException ex)
@@ -157,7 +165,8 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var participant = await _registrationApiClient.GetParticipantByIdAsync(id.Value);
+            var client = CreateRegistrationServiceClient();
+            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
 
             if (participant == null)
             {
@@ -173,7 +182,8 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var participant = await _registrationApiClient.GetParticipantByIdAsync(id);
+            var client = CreateRegistrationServiceClient();
+            var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
 
             if (participant == null)
             {
@@ -182,7 +192,8 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                await _registrationApiClient.DeleteParticipantAsync(id);
+                await DeleteAsync(client, $"api/participants/{id}");
+
                 return RedirectToAction(nameof(Index));
             }
             catch (HttpRequestException ex)
@@ -204,6 +215,84 @@ namespace SmartEventPlatformWeb.Controllers
                 LastName = participant.LastName,
                 Email = participant.Email
             };
+        }
+
+        private HttpClient CreateRegistrationServiceClient()
+        {
+            return _httpClientFactory.CreateClient("RegistrationService");
+        }
+
+        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
+        }
+
+        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return default;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<T>();
+        }
+
+        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PostAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<long>();
+        }
+
+        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PutAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task DeleteAsync(HttpClient client, string url)
+        {
+            var response = await client.DeleteAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
+        {
+            var message = await response.Content.ReadAsStringAsync();
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                message = $"API request failed with status code {(int)response.StatusCode}.";
+            }
+
+            return new HttpRequestException(message, null, response.StatusCode);
         }
     }
 }

@@ -1,4 +1,3 @@
-using SmartEventPlatformWeb.Services;
 
 namespace SmartEventPlatformWeb
 {
@@ -22,8 +21,6 @@ namespace SmartEventPlatformWeb
                 client.Timeout = TimeSpan.FromSeconds(5);
             });
 
-            builder.Services.AddScoped<IEventApiClient, EventApiClient>();
-            builder.Services.AddScoped<IRegistrationApiClient, RegistrationApiClient>();
 
             builder.Services.AddControllersWithViews();
 
