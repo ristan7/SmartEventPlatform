@@ -1,10 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Polly;
 using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.Contracts.Registrations;
 using SmartEventPlatform.RegistrationService.Data;
-using SmartEventPlatform.RegistrationService.Patterns;
 using SmartEventPlatform.RegistrationService.Models;
+using SmartEventPlatform.RegistrationService.Patterns;
 
 namespace SmartEventPlatform.RegistrationService.Controllers;
 
@@ -71,6 +72,10 @@ public class RegistrationsController : ControllerBase
         {
             return StatusCode(503, "EventService is unavailable after retry attempts.");
         }
+        catch (Exception)
+        {
+            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
+        }
     }
 
     [HttpGet("{id:long}")]
@@ -117,6 +122,10 @@ public class RegistrationsController : ControllerBase
         catch (HttpRequestException)
         {
             return StatusCode(503, "EventService is unavailable after retry attempts.");
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
         }
     }
 
@@ -185,6 +194,10 @@ public class RegistrationsController : ControllerBase
         catch (HttpRequestException)
         {
             return StatusCode(503, "Registration cannot be created because EventService is unavailable after retry attempts.");
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
         }
     }
 
@@ -269,6 +282,10 @@ public class RegistrationsController : ControllerBase
         {
             return StatusCode(503, "Registration cannot be updated because EventService is unavailable after retry attempts.");
         }
+        catch (Exception)
+        {
+            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
+        }
     }
 
     [HttpGet("{id:long}/delete-info")]
@@ -315,6 +332,10 @@ public class RegistrationsController : ControllerBase
         catch (HttpRequestException)
         {
             return StatusCode(503, "EventService is unavailable after retry attempts.");
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
         }
     }
 
@@ -404,7 +425,7 @@ public class RegistrationsController : ControllerBase
     {
         return await _circuitBreaker.ExecuteAsync(async () =>
         {
-            return await GetEventRegistrationInfoWithManualRetryAsync(eventId);
+            return await GetEventRegistrationInfoWithPollyRetryAsync(eventId);
         });
     }
 
@@ -412,117 +433,60 @@ public class RegistrationsController : ControllerBase
     {
         return await _circuitBreaker.ExecuteAsync(async () =>
         {
-            return await GetEventsWithManualRetryAsync();
+            return await GetEventsWithPollyRetryAsync();
         });
     }
 
-    private async Task<EventRegistrationInfoDto> GetEventRegistrationInfoWithManualRetryAsync(long eventId)
+    private async Task<EventRegistrationInfoDto> GetEventRegistrationInfoWithPollyRetryAsync(long eventId)
     {
-        var client = _httpClientFactory.CreateClient("EventService");
+        var eventServiceHttpClient = _httpClientFactory.CreateClient("EventService");
 
-        const int maxAttempts = 3;
-        var delayBetweenAttempts = TimeSpan.FromMilliseconds(250);
+        HttpResponseMessage? httpResponseMessage = null;
 
-        Exception? lastException = null;
+        var retryPolicy = Polly.Policy
+    .Handle<HttpRequestException>()
+    .Or<TaskCanceledException>()
+    .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
 
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        httpResponseMessage = await retryPolicy.ExecuteAsync<HttpResponseMessage>(async () =>
         {
-            try
-            {
-                var response = await client.GetAsync($"/api/events/{eventId}/registration-info");
+            httpResponseMessage = await eventServiceHttpClient.GetAsync($"/api/events/{eventId}/registration-info");
+            httpResponseMessage.EnsureSuccessStatusCode();
+            return httpResponseMessage;
+        });
 
-                if (response.IsSuccessStatusCode)
-                {
-                    var eventInfo = await response.Content.ReadFromJsonAsync<EventRegistrationInfoDto>();
+        var eventInfo = await httpResponseMessage.Content.ReadFromJsonAsync<EventRegistrationInfoDto>();
 
-                    if (eventInfo == null)
-                    {
-                        throw new HttpRequestException("EventService returned empty registration info response.");
-                    }
-
-                    return eventInfo;
-                }
-
-                lastException = new HttpRequestException(
-                    $"EventService returned status code {(int)response.StatusCode} on attempt {attempt}.");
-
-                if (attempt < maxAttempts)
-                {
-                    await Task.Delay(delayBetweenAttempts);
-                }
-            }
-            catch (TaskCanceledException ex)
-            {
-                lastException = ex;
-
-                if (attempt < maxAttempts)
-                {
-                    await Task.Delay(delayBetweenAttempts);
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                lastException = ex;
-
-                if (attempt < maxAttempts)
-                {
-                    await Task.Delay(delayBetweenAttempts);
-                }
-            }
+        if (eventInfo == null)
+        {
+            throw new HttpRequestException("EventService returned empty registration info response.");
         }
 
-        throw lastException ?? new HttpRequestException("EventService request failed after retry attempts.");
+        return eventInfo;
     }
 
-    private async Task<List<EventDto>> GetEventsWithManualRetryAsync()
+    private async Task<List<EventDto>> GetEventsWithPollyRetryAsync()
     {
-        var client = _httpClientFactory.CreateClient("EventService");
+        var eventServiceHttpClient = _httpClientFactory.CreateClient("EventService");
 
-        const int maxAttempts = 3;
-        var delayBetweenAttempts = TimeSpan.FromMilliseconds(250);
+        HttpResponseMessage? httpResponseMessage = null;
 
-        Exception? lastException = null;
+        var retryPolicy = Polly.Policy
+    .Handle<HttpRequestException>()
+    .Or<TaskCanceledException>()
+    .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
 
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        httpResponseMessage = await retryPolicy.ExecuteAsync<HttpResponseMessage>(async () =>
         {
-            try
-            {
-                var response = await client.GetAsync("/api/events");
+            httpResponseMessage = await eventServiceHttpClient.GetAsync("/api/events");
+            httpResponseMessage.EnsureSuccessStatusCode();
+            return httpResponseMessage;
+        });
 
-                if (response.IsSuccessStatusCode)
-                {
-                    var events = await response.Content.ReadFromJsonAsync<List<EventDto>>();
-                    return events ?? new List<EventDto>();
-                }
+        var events = await httpResponseMessage.Content.ReadFromJsonAsync<List<EventDto>>();
 
-                lastException = new HttpRequestException(
-                    $"EventService returned status code {(int)response.StatusCode} on attempt {attempt}.");
-
-                if (attempt < maxAttempts)
-                {
-                    await Task.Delay(delayBetweenAttempts);
-                }
-            }
-            catch (TaskCanceledException ex)
-            {
-                lastException = ex;
-
-                if (attempt < maxAttempts)
-                {
-                    await Task.Delay(delayBetweenAttempts);
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                lastException = ex;
-
-                if (attempt < maxAttempts)
-                {
-                    await Task.Delay(delayBetweenAttempts);
-                }
-            }
-        }
-
-        throw lastException ?? new HttpRequestException("EventService request failed after retry attempts.");
+        return events ?? new List<EventDto>();
     }
+
+
 }

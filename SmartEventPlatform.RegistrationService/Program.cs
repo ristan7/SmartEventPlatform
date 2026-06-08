@@ -17,7 +17,7 @@ namespace SmartEventPlatform.RegistrationService
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddSingleton<CircuitBreaker>(sp =>
-                new CircuitBreaker(3, TimeSpan.FromSeconds(15))
+                new CircuitBreaker(3, TimeSpan.FromSeconds(10))
             );
 
             builder.Services.AddHttpClient("EventService", client =>

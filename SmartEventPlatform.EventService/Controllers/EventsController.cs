@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Polly;
 using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.Models;
@@ -316,6 +317,10 @@ namespace SmartEventPlatform.EventService.Controllers
             {
                 return StatusCode(503, "Event cannot be deleted because RegistrationService is unavailable after retry attempts.");
             }
+            catch (Exception)
+            {
+                return StatusCode(500, "An unexpected error occurred while communicating with RegistrationService.");
+            }
 
             try
             {
@@ -335,60 +340,31 @@ namespace SmartEventPlatform.EventService.Controllers
         {
             return await _circuitBreaker.ExecuteAsync(async () =>
             {
-                return await EventHasRegistrationsWithManualRetryAsync(eventId);
+                return await EventHasRegistrationsWithPollyRetryAsync(eventId);
             });
         }
 
-        private async Task<bool> EventHasRegistrationsWithManualRetryAsync(long eventId)
+        private async Task<bool> EventHasRegistrationsWithPollyRetryAsync(long eventId)
         {
-            var client = _httpClientFactory.CreateClient("RegistrationService");
+            var registrationServiceHttpClient = _httpClientFactory.CreateClient("RegistrationService");
 
-            const int maxAttempts = 3;
-            var delayBetweenAttempts = TimeSpan.FromMilliseconds(250);
+            HttpResponseMessage? httpResponseMessage = null;
 
-            Exception? lastException = null;
+            var retryPolicy = Polly.Policy
+    .Handle<HttpRequestException>()
+    .Or<TaskCanceledException>()
+    .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
 
-            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            httpResponseMessage = await retryPolicy.ExecuteAsync<HttpResponseMessage>(async () =>
             {
-                try
-                {
-                    var response = await client.GetAsync($"/api/registrations/exists-for-event/{eventId}");
+                httpResponseMessage = await registrationServiceHttpClient.GetAsync($"/api/registrations/exists-for-event/{eventId}");
+                httpResponseMessage.EnsureSuccessStatusCode();
+                return httpResponseMessage;
+            });
 
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var result = await response.Content.ReadFromJsonAsync<bool>();
-                        return result;
-                    }
+            var result = await httpResponseMessage.Content.ReadFromJsonAsync<bool>();
 
-                    lastException = new HttpRequestException(
-                        $"RegistrationService returned status code {(int)response.StatusCode} on attempt {attempt}.");
-
-                    if (attempt < maxAttempts)
-                    {
-                        await Task.Delay(delayBetweenAttempts);
-                    }
-                }
-                catch (TaskCanceledException ex)
-                {
-                    lastException = ex;
-
-                    if (attempt < maxAttempts)
-                    {
-                        await Task.Delay(delayBetweenAttempts);
-                    }
-                }
-                catch (HttpRequestException ex)
-                {
-                    lastException = ex;
-
-                    if (attempt < maxAttempts)
-                    {
-                        await Task.Delay(delayBetweenAttempts);
-                    }
-                }
-            }
-
-            throw lastException ?? new HttpRequestException("RegistrationService request failed after retry attempts.");
+            return result;
         }
 
         private async Task<bool> EventExistsAsync(long id)
