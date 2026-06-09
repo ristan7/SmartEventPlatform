@@ -1,42 +1,59 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.EventSpeakers;
+using SmartEventPlatform.Contracts.EventTypes;
+using SmartEventPlatform.Contracts.Events;
+using SmartEventPlatform.Contracts.Locations;
 using SmartEventPlatformWeb.ViewModels.Events;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class EventsController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public EventsController(SmartPlatformDbContext context)
+        public EventsController(IHttpClientFactory httpClientFactory)
         {
-            _context = context;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<IActionResult> Index()
         {
-            var events = await _context.Events
-                .Include(e => e.Location)
-                .Include(e => e.EventType)
-                .OrderBy(e => e.EventDateTime)
-                .Select(e => new EventListViewModel
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    EventDateTime = e.EventDateTime,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
-                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty
-                })
-                .ToListAsync();
+            try
+            {
+                var client = CreateEventServiceClient();
+                var events = await GetListAsync<EventDto>(client, "api/events");
 
-            return View(events);
+                var vm = events
+                    .OrderBy(e => e.EventDateTime)
+                    .Select(e => new EventListViewModel
+                    {
+                        EventId = e.EventId,
+                        EventName = e.EventName,
+                        EventDateTime = e.EventDateTime,
+                        LocationName = e.LocationName,
+                        EventTypeName = e.EventTypeName
+                    })
+                    .ToList();
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading events. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading events.");
+            }
+
+            return View(new List<EventListViewModel>());
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -46,48 +63,82 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Events
-                .Include(e => e.Location)
-                .Include(e => e.EventType)
-                .Include(e => e.EventSpeakers).ThenInclude(es => es.Speaker)
-                .Where(e => e.EventId == id)
-                .Select(e => new EventDetailsViewModel
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    Agenda = e.Agenda,
-                    EventDateTime = e.EventDateTime,
-                    DurationInMinutes = e.DurationInMinutes,
-                    RegistrationFee = e.RegistrationFee,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
-                    LocationAddress = e.Location != null ? e.Location.Address : string.Empty,
-                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
-                    Speakers = e.EventSpeakers
-                    .OrderBy(es => es.Time)
-                    .Select(es => new EventSpeakerItemViewModel
-                    {
-                        EventSpeakerId = es.EventSpeakerId,
-                        SpeakerFullName = es.Speaker!.FirstName + " " + es.Speaker.LastName,
-                        Topic = es.Topic,
-                        Time = es.Time
-                    }).ToList()
-                })
-                .FirstOrDefaultAsync();
-            if (vm == null)
+            try
             {
-                return NotFound();
+                var eventClient = CreateEventServiceClient();
+
+                var eventDto = await GetNullableAsync<EventDto>(eventClient, $"api/events/{id.Value}");
+
+                if (eventDto == null)
+                {
+                    return NotFound();
+                }
+
+                var eventSpeakers = await GetListAsync<EventSpeakerDto>(eventClient, "api/eventspeakers");
+
+                var vm = new EventDetailsViewModel
+                {
+                    EventId = eventDto.EventId,
+                    EventName = eventDto.EventName,
+                    Agenda = eventDto.Agenda,
+                    EventDateTime = eventDto.EventDateTime,
+                    DurationInMinutes = eventDto.DurationInMinutes,
+                    RegistrationFee = eventDto.RegistrationFee,
+                    LocationName = eventDto.LocationName,
+                    LocationAddress = eventDto.LocationAddress,
+                    EventTypeName = eventDto.EventTypeName,
+                    Speakers = eventSpeakers
+                        .Where(es => es.EventId == eventDto.EventId)
+                        .OrderBy(es => es.Time)
+                        .Select(es => new EventSpeakerItemViewModel
+                        {
+                            EventSpeakerId = es.EventSpeakerId,
+                            SpeakerFullName = es.SpeakerFullName,
+                            Topic = es.Topic,
+                            Time = es.Time
+                        })
+                        .ToList()
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading event details. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading event details.");
             }
 
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Create()
         {
-            var vm = new EventCreateViewModel
+            var vm = new EventCreateViewModel();
+
+            try
             {
-                Locations = await GetLocationsSelectListAsync(),
-                EventTypes = await GetTypesSelectListAsync()
-            };
+                vm.Locations = await GetLocationsSelectListAsync();
+                vm.EventTypes = await GetTypesSelectListAsync();
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading form data. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading form data.");
+            }
 
             return View(vm);
         }
@@ -98,12 +149,11 @@ namespace SmartEventPlatformWeb.Controllers
         {
             if (!ModelState.IsValid)
             {
-                vm.Locations = await GetLocationsSelectListAsync();
-                vm.EventTypes = await GetTypesSelectListAsync();
+                await PopulateEventFormListsAsync(vm);
                 return View(vm);
             }
 
-            var @event = new Event
+            var dto = new EventCreateUpdateDto
             {
                 EventName = vm.EventName,
                 Agenda = vm.Agenda,
@@ -113,9 +163,29 @@ namespace SmartEventPlatformWeb.Controllers
                 LocationId = vm.LocationId,
                 EventTypeId = vm.EventTypeId
             };
-            _context.Events.Add(@event);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                var client = CreateEventServiceClient();
+                await PostAndReadIdAsync(client, "api/events", dto);
+
+                return RedirectToAction(nameof(Index));
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while creating the event. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the event.");
+            }
+
+            await PopulateEventFormListsAsync(vm);
+            return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -125,25 +195,46 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var @event = await _context.Events.FindAsync(id);
-            if (@event == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
+
+                if (eventDto == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new EventEditViewModel
+                {
+                    EventId = eventDto.EventId,
+                    EventName = eventDto.EventName,
+                    Agenda = eventDto.Agenda,
+                    EventDateTime = eventDto.EventDateTime,
+                    DurationInMinutes = eventDto.DurationInMinutes,
+                    RegistrationFee = eventDto.RegistrationFee,
+                    LocationId = eventDto.LocationId,
+                    EventTypeId = eventDto.EventTypeId,
+                    Locations = await GetLocationsSelectListAsync(),
+                    EventTypes = await GetTypesSelectListAsync()
+                };
+
+                return View(vm);
             }
-            var vm = new EventEditViewModel
+            catch (TaskCanceledException)
             {
-                EventId = @event.EventId,
-                EventName = @event.EventName,
-                Agenda = @event.Agenda,
-                EventDateTime = @event.EventDateTime,
-                DurationInMinutes = @event.DurationInMinutes,
-                RegistrationFee = @event.RegistrationFee,
-                LocationId = @event.LocationId,
-                EventTypeId = @event.EventTypeId,
-                Locations = await GetLocationsSelectListAsync(),
-                EventTypes = await GetTypesSelectListAsync()
-            };
-            return View(vm);
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the event. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the event.");
+            }
+
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -157,42 +248,43 @@ namespace SmartEventPlatformWeb.Controllers
 
             if (!ModelState.IsValid)
             {
-                vm.Locations = await GetLocationsSelectListAsync();
-                vm.EventTypes = await GetTypesSelectListAsync();
+                await PopulateEventFormListsAsync(vm);
                 return View(vm);
             }
 
+            var dto = new EventCreateUpdateDto
+            {
+                EventName = vm.EventName,
+                Agenda = vm.Agenda,
+                EventDateTime = vm.EventDateTime,
+                DurationInMinutes = vm.DurationInMinutes,
+                RegistrationFee = vm.RegistrationFee,
+                LocationId = vm.LocationId,
+                EventTypeId = vm.EventTypeId
+            };
+
             try
             {
-                var @event = await _context.Events.FindAsync(id);
+                var client = CreateEventServiceClient();
+                await PutAsync(client, $"api/events/{id}", dto);
 
-                if (@event == null)
-                {
-                    return NotFound();
-                }
-                @event.EventName = vm.EventName;
-                @event.Agenda = vm.Agenda;
-                @event.EventDateTime = vm.EventDateTime;
-                @event.DurationInMinutes = vm.DurationInMinutes;
-                @event.RegistrationFee = vm.RegistrationFee;
-                @event.LocationId = vm.LocationId;
-                @event.EventTypeId = vm.EventTypeId;
-
-                _context.Update(@event);
-                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (TaskCanceledException)
             {
-                if (!EventExists(vm.EventId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, "Request timeout expired while updating the event. Please try again.");
             }
-            return RedirectToAction(nameof(Index));
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the event.");
+            }
+
+            await PopulateEventFormListsAsync(vm);
+            return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -202,148 +294,271 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Events
-                .Include(e => e.Location)
-                .Where(e => e.EventId == id)
-                .Select(e => new EventDeleteViewModel
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    EventDateTime = e.EventDateTime,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty
-                })
-                .FirstOrDefaultAsync();
-            if (vm == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
+
+                if (eventDto == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = MapToDeleteViewModel(eventDto);
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the event. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the event.");
             }
 
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var @event = await _context.Events
-                .Include(e => e.Location)
-                .FirstOrDefaultAsync(e => e.EventId == id);
-
-            if (@event == null)
-            {
-                return NotFound();
-            }
-
-            if (await EventHasDependenciesAsync(id))
-            {
-                return ReturnEventDeleteViewWithError(
-                    @event,
-                    "This event cannot be deleted because it has assigned speakers or participant registrations.");
-            }
+            EventDto? eventDto = null;
 
             try
             {
-                _context.Events.Remove(@event);
-                await _context.SaveChangesAsync();
+                var client = CreateEventServiceClient();
+
+                eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id}");
+
+                if (eventDto == null)
+                {
+                    return NotFound();
+                }
+
+                await DeleteAsync(client, $"api/events/{id}");
 
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (TaskCanceledException)
             {
-                return ReturnEventDeleteViewWithError(
-                    @event,
-                    "This event cannot be deleted because it is used by other records.");
+                ModelState.AddModelError(string.Empty, "Request timeout expired while deleting the event. Please try again.");
             }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the event.");
+            }
+
+            if (eventDto == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
+            var vm = MapToDeleteViewModel(eventDto);
+            return View("Delete", vm);
         }
 
         public async Task<IActionResult> Available()
         {
-            var now = DateTime.Now;
+            try
+            {
+                var client = CreateRegistrationServiceClient();
+                var availableEvents = await GetListAsync<AvailableEventDto>(client, "api/availableevents");
 
-            var events = await _context.Events
-                .Where(e => e.EventDateTime >= now)
-                .Where(e => e.Registrations.Count() < e.Location!.Capacity)
-                .OrderBy(e => e.EventDateTime)
-                .Select(e => new AvailableEventViewModel
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    Agenda = e.Agenda,
-                    EventDateTime = e.EventDateTime,
-                    DurationInMinutes = e.DurationInMinutes,
-                    RegistrationFee = e.RegistrationFee,
+                var vm = availableEvents
+                    .OrderBy(e => e.EventDateTime)
+                    .Select(e => new AvailableEventViewModel
+                    {
+                        EventId = e.EventId,
+                        EventName = e.EventName,
+                        Agenda = e.Agenda,
+                        EventDateTime = e.EventDateTime,
+                        DurationInMinutes = e.DurationInMinutes,
+                        RegistrationFee = e.RegistrationFee,
+                        LocationName = e.LocationName,
+                        Capacity = e.Capacity,
+                        RegisteredCount = e.RegisteredCount,
+                        Speakers = e.Speakers
+                    })
+                    .ToList();
 
-                    LocationName = e.Location!.LocationName,
-                    Capacity = e.Location.Capacity,
-                    RegisteredCount = e.Registrations.Count(),
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading available events. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading available events.");
+            }
 
-                    Speakers = e.EventSpeakers
-                        .Select(es => es.Speaker!.FirstName + " " + es.Speaker.LastName)
-                        .ToList()
-                })
-                .ToListAsync();
-
-            return View(events);
-        }
-
-        private bool EventExists(long id)
-        {
-            return _context.Events.Any(e => e.EventId == id);
+            return View(new List<AvailableEventViewModel>());
         }
 
         private async Task<List<SelectListItem>> GetLocationsSelectListAsync()
         {
-            return await _context.Locations
-                    .Select(l => new SelectListItem
-                    {
-                        Value = l.LocationId.ToString(),
-                        Text = l.LocationName
-                    })
-                    .ToListAsync();
+            var client = CreateEventServiceClient();
+            var locations = await GetListAsync<LocationDto>(client, "api/locations");
+
+            return locations
+                .OrderBy(l => l.LocationName)
+                .Select(l => new SelectListItem
+                {
+                    Value = l.LocationId.ToString(),
+                    Text = l.LocationName
+                })
+                .ToList();
         }
 
         private async Task<List<SelectListItem>> GetTypesSelectListAsync()
         {
-            return await _context.EventTypes
+            var client = CreateEventServiceClient();
+            var eventTypes = await GetListAsync<EventTypeDto>(client, "api/eventtypes");
+
+            return eventTypes
+                .OrderBy(et => et.Name)
                 .Select(et => new SelectListItem
                 {
                     Value = et.EventTypeId.ToString(),
                     Text = et.Name
-                }).ToListAsync();
+                })
+                .ToList();
         }
 
-        private async Task<bool> EventHasDependenciesAsync(long eventId)
+        private async Task PopulateEventFormListsAsync(EventCreateViewModel vm)
         {
-            var hasSpeakers = await _context.EventSpeakers
-                .AnyAsync(es => es.EventId == eventId);
-
-            var hasRegistrations = await _context.Registrations
-                .AnyAsync(r => r.EventId == eventId);
-
-            return hasSpeakers || hasRegistrations;
+            try
+            {
+                vm.Locations = await GetLocationsSelectListAsync();
+                vm.EventTypes = await GetTypesSelectListAsync();
+            }
+            catch
+            {
+                vm.Locations = new List<SelectListItem>();
+                vm.EventTypes = new List<SelectListItem>();
+            }
         }
 
-        private static EventDeleteViewModel MapToDeleteViewModel(Event @event)
+        private async Task PopulateEventFormListsAsync(EventEditViewModel vm)
+        {
+            try
+            {
+                vm.Locations = await GetLocationsSelectListAsync();
+                vm.EventTypes = await GetTypesSelectListAsync();
+            }
+            catch
+            {
+                vm.Locations = new List<SelectListItem>();
+                vm.EventTypes = new List<SelectListItem>();
+            }
+        }
+
+        private static EventDeleteViewModel MapToDeleteViewModel(EventDto eventDto)
         {
             return new EventDeleteViewModel
             {
-                EventId = @event.EventId,
-                EventName = @event.EventName,
-                EventDateTime = @event.EventDateTime,
-                LocationName = @event.Location != null
-                    ? @event.Location.LocationName
-                    : string.Empty
+                EventId = eventDto.EventId,
+                EventName = eventDto.EventName,
+                EventDateTime = eventDto.EventDateTime,
+                LocationName = eventDto.LocationName
             };
         }
 
-        private IActionResult ReturnEventDeleteViewWithError(Event @event, string errorMessage)
+        private HttpClient CreateEventServiceClient()
         {
-            ModelState.AddModelError(string.Empty, errorMessage);
-
-            var vm = MapToDeleteViewModel(@event);
-
-            return View("Delete", vm);
+            return _httpClientFactory.CreateClient("EventService");
         }
 
+        private HttpClient CreateRegistrationServiceClient()
+        {
+            return _httpClientFactory.CreateClient("RegistrationService");
+        }
+
+        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
+        }
+
+        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return default;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<T>();
+        }
+
+        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PostAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<long>();
+        }
+
+        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PutAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task DeleteAsync(HttpClient client, string url)
+        {
+            var response = await client.DeleteAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
+        {
+            var message = await response.Content.ReadAsStringAsync();
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                message = $"API request failed with status code {(int)response.StatusCode}.";
+            }
+
+            return new HttpRequestException(message, null, response.StatusCode);
+        }
     }
 }
