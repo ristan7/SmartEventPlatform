@@ -6,6 +6,8 @@
 
 <h1>Delete Registration</h1>
 
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
 <h3>Are you sure you want to delete this registration?</h3>
 <div>
     <dl class="row">
@@ -19,7 +21,6 @@
 </div>
 
 <form asp-action="Delete" method="post">
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <input type="hidden" asp-for="RegistrationId" />
     <div class="form-group">
         <input type="submit" value="Delete" class="btn btn-danger" />

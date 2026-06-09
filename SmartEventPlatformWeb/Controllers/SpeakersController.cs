@@ -1,34 +1,57 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.EventSpeakers;
+using SmartEventPlatform.Contracts.Speakers;
 using SmartEventPlatformWeb.ViewModels.Speakers;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class SpeakersController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public SpeakersController(SmartPlatformDbContext context)
+        public SpeakersController(IHttpClientFactory httpClientFactory)
         {
-            _context = context;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<IActionResult> Index()
         {
-            var speakers = await _context.Speakers
-                .OrderBy(s => s.LastName)
-                .Select(s => new SpeakerListViewModel
-                {
-                    SpeakerId = s.SpeakerId,
-                    FirstName = s.FirstName,
-                    LastName = s.LastName,
-                    Title = s.Title,
-                    ExpertiseAreas = s.ExpertiseAreas
-                }).ToListAsync();
+            try
+            {
+                var client = CreateEventServiceClient();
+                var speakers = await GetListAsync<SpeakerDto>(client, "api/speakers");
 
-            return View(speakers);
+                var vm = speakers
+                    .OrderBy(s => s.LastName)
+                    .ThenBy(s => s.FirstName)
+                    .Select(s => new SpeakerListViewModel
+                    {
+                        SpeakerId = s.SpeakerId,
+                        FirstName = s.FirstName,
+                        LastName = s.LastName,
+                        Title = s.Title,
+                        ExpertiseAreas = s.ExpertiseAreas
+                    })
+                    .ToList();
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading speakers. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading speakers.");
+            }
+
+            return View(new List<SpeakerListViewModel>());
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -38,36 +61,56 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Speakers
-                .Include(s => s.EventSpeakers)
-                .ThenInclude(es => es.Event)
-                .Include(s => s.EventSpeakers)
-                .Where(s => s.SpeakerId == id)
-                .Select(s => new SpeakerDetailsViewModel
-                {
-                    SpeakerId = s.SpeakerId,
-                    FirstName = s.FirstName,
-                    LastName = s.LastName,
-                    Title = s.Title,
-                    ExpertiseAreas = s.ExpertiseAreas,
-                    EventSpeakersParticipations = s.EventSpeakers
-                    .OrderBy(es => es.Time)
-                    .Select(es => new SpeakerEventItemViewModel
-                    {
-                        EventSpeakerId = es.EventSpeakerId,
-                        EventId = es.EventId,
-                        EventName = es.Event!.EventName,
-                        Topic = es.Topic,
-                        Time = es.Time
-                    }).ToList()
-                }).FirstOrDefaultAsync();
-
-            if (vm == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+
+                var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+
+                if (speaker == null)
+                {
+                    return NotFound();
+                }
+
+                var eventSpeakers = await GetListAsync<EventSpeakerDto>(client, "api/eventspeakers");
+
+                var vm = new SpeakerDetailsViewModel
+                {
+                    SpeakerId = speaker.SpeakerId,
+                    FirstName = speaker.FirstName,
+                    LastName = speaker.LastName,
+                    Title = speaker.Title,
+                    ExpertiseAreas = speaker.ExpertiseAreas,
+                    EventSpeakersParticipations = eventSpeakers
+                        .Where(es => es.SpeakerId == speaker.SpeakerId)
+                        .OrderBy(es => es.Time)
+                        .Select(es => new SpeakerEventItemViewModel
+                        {
+                            EventSpeakerId = es.EventSpeakerId,
+                            EventId = es.EventId,
+                            EventName = es.EventName,
+                            Topic = es.Topic,
+                            Time = es.Time
+                        })
+                        .ToList()
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading speaker details. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading speaker details.");
             }
 
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         public IActionResult Create()
@@ -83,16 +126,36 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
-            var speaker = new Speaker
+
+            var dto = new SpeakerDto
             {
                 FirstName = vm.FirstName,
                 LastName = vm.LastName,
                 Title = vm.Title,
                 ExpertiseAreas = vm.ExpertiseAreas
             };
-            _context.Add(speaker);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                var client = CreateEventServiceClient();
+                await PostAndReadIdAsync(client, "api/speakers", dto);
+
+                return RedirectToAction(nameof(Index));
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while creating the speaker. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the speaker.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -102,20 +165,41 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var speaker = await _context.Speakers.FindAsync(id);
-            if (speaker == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+
+                if (speaker == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new SpeakerEditViewModel
+                {
+                    SpeakerId = speaker.SpeakerId,
+                    FirstName = speaker.FirstName,
+                    LastName = speaker.LastName,
+                    Title = speaker.Title,
+                    ExpertiseAreas = speaker.ExpertiseAreas
+                };
+
+                return View(vm);
             }
-            var vm = new SpeakerEditViewModel
+            catch (TaskCanceledException)
             {
-                SpeakerId = speaker.SpeakerId,
-                FirstName = speaker.FirstName,
-                LastName = speaker.LastName,
-                Title = speaker.Title,
-                ExpertiseAreas = speaker.ExpertiseAreas
-            };
-            return View(vm);
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the speaker. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the speaker.");
+            }
+
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -131,35 +215,37 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
+
+            var dto = new SpeakerDto
+            {
+                SpeakerId = vm.SpeakerId,
+                FirstName = vm.FirstName,
+                LastName = vm.LastName,
+                Title = vm.Title,
+                ExpertiseAreas = vm.ExpertiseAreas
+            };
+
             try
             {
-                var speaker = await _context.Speakers.FindAsync(id);
-                if (speaker == null)
-                {
-                    return NotFound();
-                }
+                var client = CreateEventServiceClient();
+                await PutAsync(client, $"api/speakers/{id}", dto);
 
-                speaker.FirstName = vm.FirstName;
-                speaker.LastName = vm.LastName;
-                speaker.Title = vm.Title;
-                speaker.ExpertiseAreas = vm.ExpertiseAreas;
-
-                _context.Update(speaker);
-                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (TaskCanceledException)
             {
-                if (!SpeakerExists(vm.SpeakerId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, "Request timeout expired while updating the speaker. Please try again.");
             }
-            return RedirectToAction(nameof(Index));
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the speaker.");
+            }
 
+            return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -169,70 +255,80 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Speakers
-                .Where(s => s.SpeakerId == id)
-                .Select(s => new SpeakerDeleteViewModel
-                {
-                    SpeakerId = s.SpeakerId,
-                    FirstName = s.FirstName,
-                    LastName = s.LastName,
-                    Title = s.Title,
-                    ExpertiseAreas = s.ExpertiseAreas
-                }).FirstOrDefaultAsync();
-
-            if (vm == null)
+            try
             {
-                return NotFound();
+                var client = CreateEventServiceClient();
+                var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+
+                if (speaker == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = MapToDeleteViewModel(speaker);
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the speaker. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the speaker.");
             }
 
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var speaker = await _context.Speakers.FindAsync(id);
-
-            if (speaker == null)
-            {
-                return NotFound();
-            }
-
-            if (await SpeakerHasDependenciesAsync(id))
-            {
-                return ReturnSpeakerDeleteViewWithError(
-                    speaker,
-                    "This speaker cannot be deleted because they are assigned to one or more events.");
-            }
+            SpeakerDto? speaker = null;
 
             try
             {
-                _context.Speakers.Remove(speaker);
-                await _context.SaveChangesAsync();
+                var client = CreateEventServiceClient();
+
+                speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id}");
+
+                if (speaker == null)
+                {
+                    return NotFound();
+                }
+
+                await DeleteAsync(client, $"api/speakers/{id}");
 
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (TaskCanceledException)
             {
-                return ReturnSpeakerDeleteViewWithError(
-                    speaker,
-                    "This speaker cannot be deleted because they are used by other records.");
+                ModelState.AddModelError(string.Empty, "Request timeout expired while deleting the speaker. Please try again.");
             }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the speaker.");
+            }
+
+            if (speaker == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
+            var vm = MapToDeleteViewModel(speaker);
+            return View("Delete", vm);
         }
 
-        private bool SpeakerExists(long id)
-        {
-            return _context.Speakers.Any(s => s.SpeakerId == id);
-        }
-
-        private async Task<bool> SpeakerHasDependenciesAsync(long speakerId)
-        {
-            return await _context.EventSpeakers
-                .AnyAsync(es => es.SpeakerId == speakerId);
-        }
-
-        private static SpeakerDeleteViewModel MapToDeleteViewModel(Speaker speaker)
+        private static SpeakerDeleteViewModel MapToDeleteViewModel(SpeakerDto speaker)
         {
             return new SpeakerDeleteViewModel
             {
@@ -244,13 +340,82 @@ namespace SmartEventPlatformWeb.Controllers
             };
         }
 
-        private IActionResult ReturnSpeakerDeleteViewWithError(Speaker speaker, string errorMessage)
+        private HttpClient CreateEventServiceClient()
         {
-            ModelState.AddModelError(string.Empty, errorMessage);
+            return _httpClientFactory.CreateClient("EventService");
+        }
 
-            var vm = MapToDeleteViewModel(speaker);
+        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
 
-            return View("Delete", vm);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
+        }
+
+        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return default;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<T>();
+        }
+
+        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PostAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<long>();
+        }
+
+        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PutAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task DeleteAsync(HttpClient client, string url)
+        {
+            var response = await client.DeleteAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
+        {
+            var message = await response.Content.ReadAsStringAsync();
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                message = $"API request failed with status code {(int)response.StatusCode}.";
+            }
+
+            return new HttpRequestException(message, null, response.StatusCode);
         }
     }
 }

@@ -1,32 +1,55 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SmartEventPlatformWeb.Data;
-using SmartEventPlatformWeb.Domains;
+using SmartEventPlatform.Contracts.Participants;
 using SmartEventPlatformWeb.ViewModels.Participants;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace SmartEventPlatformWeb.Controllers
 {
     public class ParticipantsController : Controller
     {
-        private readonly SmartPlatformDbContext _context;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public ParticipantsController(SmartPlatformDbContext context)
+        public ParticipantsController(IHttpClientFactory httpClientFactory)
         {
-            _context = context;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<IActionResult> Index()
         {
-            var part = await _context.Participants
-                .OrderBy(p => p.LastName)
-                .Select(p => new ParticipantListViewModel
-                {
-                    ParticipantId = p.ParticipantId,
-                    FirstName = p.FirstName,
-                    LastName = p.LastName,
-                    Email = p.Email
-                }).ToListAsync();
-            return View(part);
+            try
+            {
+                var client = CreateRegistrationServiceClient();
+                var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
+
+                var vm = participants
+                    .OrderBy(p => p.LastName)
+                    .ThenBy(p => p.FirstName)
+                    .Select(p => new ParticipantListViewModel
+                    {
+                        ParticipantId = p.ParticipantId,
+                        FirstName = p.FirstName,
+                        LastName = p.LastName,
+                        Email = p.Email
+                    })
+                    .ToList();
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading participants. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading participants.");
+            }
+
+            return View(new List<ParticipantListViewModel>());
         }
 
         public async Task<IActionResult> Details(long? id)
@@ -36,23 +59,40 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Participants
-                .Where(p => p.ParticipantId == id)
-                .Select(p => new ParticipantDetailsViewModel
-                {
-                    ParticipantId = p.ParticipantId,
-                    FirstName = p.FirstName,
-                    LastName = p.LastName,
-                    Email = p.Email
-                })
-                .FirstOrDefaultAsync();
-
-            if (vm == null)
+            try
             {
-                return NotFound();
+                var client = CreateRegistrationServiceClient();
+                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new ParticipantDetailsViewModel
+                {
+                    ParticipantId = participant.ParticipantId,
+                    FirstName = participant.FirstName,
+                    LastName = participant.LastName,
+                    Email = participant.Email
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading participant details. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading participant details.");
             }
 
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         public IActionResult Create()
@@ -68,15 +108,35 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
-            var participant = new Participant
+
+            var dto = new ParticipantDto
             {
                 FirstName = vm.FirstName,
                 LastName = vm.LastName,
                 Email = vm.Email
             };
-            _context.Participants.Add(participant);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            try
+            {
+                var client = CreateRegistrationServiceClient();
+                await PostAndReadIdAsync(client, "api/participants", dto);
+
+                return RedirectToAction(nameof(Index));
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while creating the participant. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the participant.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
@@ -86,20 +146,40 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var @event = await _context.Participants.FindAsync(id);
-            if (@event == null)
+            try
             {
-                return NotFound();
+                var client = CreateRegistrationServiceClient();
+                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = new ParticipantEditViewModel
+                {
+                    ParticipantId = participant.ParticipantId,
+                    FirstName = participant.FirstName,
+                    LastName = participant.LastName,
+                    Email = participant.Email
+                };
+
+                return View(vm);
+            }
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the participant. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the participant.");
             }
 
-            var vm = new ParticipantEditViewModel
-            {
-                ParticipantId = @event.ParticipantId,
-                FirstName = @event.FirstName,
-                LastName = @event.LastName,
-                Email = @event.Email
-            };
-            return View(vm);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -115,32 +195,36 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 return View(vm);
             }
+
+            var dto = new ParticipantDto
+            {
+                ParticipantId = vm.ParticipantId,
+                FirstName = vm.FirstName,
+                LastName = vm.LastName,
+                Email = vm.Email
+            };
+
             try
             {
-                var participant = await _context.Participants.FindAsync(id);
-                if (participant == null)
-                {
-                    return NotFound();
-                }
+                var client = CreateRegistrationServiceClient();
+                await PutAsync(client, $"api/participants/{id}", dto);
 
-                participant.FirstName = vm.FirstName;
-                participant.LastName = vm.LastName;
-                participant.Email = vm.Email;
-                _context.Update(participant);
-                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateConcurrencyException)
+            catch (TaskCanceledException)
             {
-                if (!ParticipantExists(vm.ParticipantId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                ModelState.AddModelError(string.Empty, "Request timeout expired while updating the participant. Please try again.");
             }
-            return RedirectToAction(nameof(Index));
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the participant.");
+            }
+
+            return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
@@ -150,68 +234,80 @@ namespace SmartEventPlatformWeb.Controllers
                 return NotFound();
             }
 
-            var vm = await _context.Participants
-                .Where(p => p.ParticipantId == id)
-                .Select(p => new ParticipantDeleteViewModel
-                {
-                    ParticipantId = p.ParticipantId,
-                    FirstName = p.FirstName,
-                    LastName = p.LastName,
-                    Email = p.Email
-                }).FirstOrDefaultAsync();
-
-            if (vm == null)
+            try
             {
-                return NotFound();
+                var client = CreateRegistrationServiceClient();
+                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
+                var vm = MapToDeleteViewModel(participant);
+
+                return View(vm);
             }
-            return View(vm);
+            catch (TaskCanceledException)
+            {
+                ModelState.AddModelError(string.Empty, "Request timeout expired while loading the participant. Please try again.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while loading the participant.");
+            }
+
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(long id)
         {
-            var participant = await _context.Participants.FindAsync(id);
-
-            if (participant == null)
-            {
-                return NotFound();
-            }
-
-            if (await ParticipantHasDependenciesAsync(id))
-            {
-                return ReturnParticipantDeleteViewWithError(
-                    participant,
-                    "This participant cannot be deleted because they have one or more event registrations.");
-            }
+            ParticipantDto? participant = null;
 
             try
             {
-                _context.Participants.Remove(participant);
-                await _context.SaveChangesAsync();
+                var client = CreateRegistrationServiceClient();
+
+                participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
+
+                if (participant == null)
+                {
+                    return NotFound();
+                }
+
+                await DeleteAsync(client, $"api/participants/{id}");
 
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException)
+            catch (TaskCanceledException)
             {
-                return ReturnParticipantDeleteViewWithError(
-                    participant,
-                    "This participant cannot be deleted because they are used by other records.");
+                ModelState.AddModelError(string.Empty, "Request timeout expired while deleting the participant. Please try again.");
             }
+            catch (HttpRequestException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the participant.");
+            }
+
+            if (participant == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
+            var vm = MapToDeleteViewModel(participant);
+            return View("Delete", vm);
         }
 
-        private bool ParticipantExists(long id)
-        {
-            return _context.Participants.Any(p => p.ParticipantId == id);
-        }
-
-        private async Task<bool> ParticipantHasDependenciesAsync(long participantId)
-        {
-            return await _context.Registrations
-                .AnyAsync(r => r.ParticipantId == participantId);
-        }
-
-        private static ParticipantDeleteViewModel MapToDeleteViewModel(Participant participant)
+        private static ParticipantDeleteViewModel MapToDeleteViewModel(ParticipantDto participant)
         {
             return new ParticipantDeleteViewModel
             {
@@ -222,13 +318,82 @@ namespace SmartEventPlatformWeb.Controllers
             };
         }
 
-        private IActionResult ReturnParticipantDeleteViewWithError(Participant participant, string errorMessage)
+        private HttpClient CreateRegistrationServiceClient()
         {
-            ModelState.AddModelError(string.Empty, errorMessage);
+            return _httpClientFactory.CreateClient("RegistrationService");
+        }
 
-            var vm = MapToDeleteViewModel(participant);
+        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
 
-            return View("Delete", vm);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
+        }
+
+        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return default;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<T>();
+        }
+
+        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PostAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+
+            return await response.Content.ReadFromJsonAsync<long>();
+        }
+
+        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
+        {
+            var response = await client.PutAsJsonAsync(url, dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task DeleteAsync(HttpClient client, string url)
+        {
+            var response = await client.DeleteAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateApiExceptionAsync(response);
+            }
+        }
+
+        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
+        {
+            var message = await response.Content.ReadAsStringAsync();
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                message = $"API request failed with status code {(int)response.StatusCode}.";
+            }
+
+            return new HttpRequestException(message, null, response.StatusCode);
         }
     }
 }
