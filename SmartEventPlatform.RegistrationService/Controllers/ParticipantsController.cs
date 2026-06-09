@@ -18,7 +18,6 @@ namespace SmartEventPlatform.RegistrationService.Controllers
             _context = context;
         }
 
-        // MONOLIT: Index()
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ParticipantDto>>> GetAll()
         {
@@ -85,10 +84,7 @@ namespace SmartEventPlatform.RegistrationService.Controllers
             _context.Participants.Add(participant);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = participant.ParticipantId },
-                participant.ParticipantId);
+            return CreatedAtAction(nameof(GetById), new { id = participant.ParticipantId }, participant.ParticipantId);
         }
 
         [HttpPut("{id:long}")]
@@ -172,7 +168,9 @@ namespace SmartEventPlatform.RegistrationService.Controllers
                 return NotFound();
             }
 
-            if (await ParticipantHasDependenciesAsync(id))
+            var hasRegistrations = participant.Registrations.Any();
+
+            if (hasRegistrations)
             {
                 return BadRequest("This participant cannot be deleted because they have one or more event registrations.");
             }
@@ -193,12 +191,6 @@ namespace SmartEventPlatform.RegistrationService.Controllers
         private async Task<bool> ParticipantExistsAsync(long id)
         {
             return await _context.Participants.AnyAsync(p => p.ParticipantId == id);
-        }
-
-        private async Task<bool> ParticipantHasDependenciesAsync(long participantId)
-        {
-            return await _context.Registrations
-                .AnyAsync(r => r.ParticipantId == participantId);
         }
     }
 }

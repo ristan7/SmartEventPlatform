@@ -78,7 +78,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return CreatedAtAction(nameof(GetById), new { id = location.LocationId }, location.LocationId);
         }
 
-        // MONOLIT Edit POST
         [HttpPut("{id:long}")]
         public async Task<IActionResult> Update(long id, LocationDto dto)
         {

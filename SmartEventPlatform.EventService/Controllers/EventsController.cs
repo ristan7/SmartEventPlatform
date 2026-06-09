@@ -16,14 +16,10 @@ namespace SmartEventPlatform.EventService.Controllers
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly CircuitBreaker _circuitBreaker;
 
-        // Use this only for manual retry testing.
-        // Keep simulation code commented during normal application testing.
+        
         private static int _counter = 0;
 
-        public EventsController(
-            EventDbContext context,
-            IHttpClientFactory httpClientFactory,
-            CircuitBreaker circuitBreaker)
+        public EventsController(EventDbContext context, IHttpClientFactory httpClientFactory, CircuitBreaker circuitBreaker)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
@@ -114,9 +110,6 @@ namespace SmartEventPlatform.EventService.Controllers
         [HttpGet("{id:long}/registration-info")]
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
-            // Retry test simulation.
-            // Uncomment only when you are testing Polly retry.
-            // First two calls fail, third call succeeds.
 
             //_counter++;
 
@@ -125,13 +118,8 @@ namespace SmartEventPlatform.EventService.Controllers
             //    return StatusCode(500, "Simulated temporary EventService error.");
             //}
 
-
-            // Timeout test simulation.
-            // Uncomment only when you are testing timeout.
             //await Task.Delay(10000);
 
-            // Circuit breaker test simulation.
-            // Uncomment only when you are testing circuit breaker.
             //return StatusCode(500, "Simulated EventService failure.");
 
             var dto = await _context.Events

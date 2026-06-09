@@ -105,22 +105,23 @@ public class AvailableEventsController : ControllerBase
     {
         var eventServiceHttpClient = _httpClientFactory.CreateClient("EventService");
 
-        HttpResponseMessage? httpResponseMessage = null;
-
         var retryPolicy = Polly.Policy
-    .Handle<HttpRequestException>()
-    .Or<TaskCanceledException>()
-    .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
+            .Handle<HttpRequestException>()
+            .Or<TaskCanceledException>()
+            .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
 
-        httpResponseMessage = await retryPolicy.ExecuteAsync<HttpResponseMessage>(async () =>
+        var httpResponseMessage = await retryPolicy.ExecuteAsync(async () =>
         {
-            httpResponseMessage = await eventServiceHttpClient.GetAsync("/api/events");
-            httpResponseMessage.EnsureSuccessStatusCode();
-            return httpResponseMessage;
+            var response = await eventServiceHttpClient.GetAsync("/api/events");
+
+            response.EnsureSuccessStatusCode();
+
+            return response;
         });
+        
 
-        var events = await httpResponseMessage.Content.ReadFromJsonAsync<List<EventDto>>();
+        var result = await httpResponseMessage.Content.ReadFromJsonAsync<List<EventDto>>();
 
-        return events ?? new List<EventDto>();
+        return result ?? new List<EventDto>();
     }
 }

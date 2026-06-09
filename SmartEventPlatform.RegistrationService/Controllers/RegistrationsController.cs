@@ -17,7 +17,7 @@ public class RegistrationsController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly CircuitBreaker _circuitBreaker;
 
-    //private static int _existsForEventCounter = 0;
+    private static int _existsForEventCounter = 0;
 
     public RegistrationsController(RegistrationDbContext context, IHttpClientFactory httpClientFactory, CircuitBreaker circuitBreaker)
     {
@@ -178,10 +178,7 @@ public class RegistrationsController : ControllerBase
             _context.Registrations.Add(registration);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = registration.RegistrationId },
-                registration.RegistrationId);
+            return CreatedAtAction(nameof(GetById), new { id = registration.RegistrationId }, registration.RegistrationId);
         }
         catch (CircuitBreakerOpenException)
         {
@@ -233,10 +230,7 @@ public class RegistrationsController : ControllerBase
                 return BadRequest("Selected event does not exist.");
             }
 
-            var duplicateRegistration = await DuplicateRegistrationExistsAsync(
-                dto.EventId,
-                dto.ParticipantId,
-                id);
+            var duplicateRegistration = await DuplicateRegistrationExistsAsync(dto.EventId, dto.ParticipantId, id);
 
             if (duplicateRegistration)
             {
@@ -367,6 +361,8 @@ public class RegistrationsController : ControllerBase
 
         //await Task.Delay(10000);
 
+        //return StatusCode(500, "Simulated RegistrationService failure.");
+
         var exists = await _context.Registrations
             .AnyAsync(r => r.EventId == eventId);
 
@@ -384,22 +380,13 @@ public class RegistrationsController : ControllerBase
             .AnyAsync(r => r.EventId == eventId && r.ParticipantId == participantId);
     }
 
-    private async Task<bool> DuplicateRegistrationExistsAsync(
-        long eventId,
-        long participantId,
-        long registrationIdToExclude)
+    private async Task<bool> DuplicateRegistrationExistsAsync(long eventId, long participantId, long registrationIdToExclude)
     {
         return await _context.Registrations
-            .AnyAsync(r =>
-                r.RegistrationId != registrationIdToExclude &&
-                r.EventId == eventId &&
-                r.ParticipantId == participantId);
+            .AnyAsync(r => r.RegistrationId != registrationIdToExclude && r.EventId == eventId && r.ParticipantId == participantId);
     }
 
-    private async Task<bool> IsEventCapacityReached(
-    long eventId,
-    int capacity,
-    long? registrationIdToExclude = null)
+    private async Task<bool> IsEventCapacityReached(long eventId, int capacity, long? registrationIdToExclude = null)
     {
         var registrationsQuery = _context.Registrations
             .Where(r => r.EventId == eventId);
@@ -435,51 +422,54 @@ public class RegistrationsController : ControllerBase
     {
         var eventServiceHttpClient = _httpClientFactory.CreateClient("EventService");
 
-        HttpResponseMessage? httpResponseMessage = null;
-
         var retryPolicy = Polly.Policy
-    .Handle<HttpRequestException>()
-    .Or<TaskCanceledException>()
-    .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
+            .Handle<HttpRequestException>()
+            .Or<TaskCanceledException>()
+            .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
 
-        httpResponseMessage = await retryPolicy.ExecuteAsync<HttpResponseMessage>(async () =>
+        var httpResponseMessage = await retryPolicy.ExecuteAsync(async () =>
         {
-            httpResponseMessage = await eventServiceHttpClient.GetAsync($"/api/events/{eventId}/registration-info");
-            httpResponseMessage.EnsureSuccessStatusCode();
-            return httpResponseMessage;
+            var response = await eventServiceHttpClient.GetAsync($"/api/events/{eventId}/registration-info");
+
+            response.EnsureSuccessStatusCode();
+
+            return response;
         });
+       
 
-        var eventInfo = await httpResponseMessage.Content.ReadFromJsonAsync<EventRegistrationInfoDto>();
+        var result = await httpResponseMessage.Content.ReadFromJsonAsync<EventRegistrationInfoDto>();
 
-        if (eventInfo == null)
+        if (result == null)
         {
             throw new HttpRequestException("EventService returned empty registration info response.");
         }
 
-        return eventInfo;
+        return result;
     }
 
     private async Task<List<EventDto>> GetEventsWithPollyRetryAsync()
     {
         var eventServiceHttpClient = _httpClientFactory.CreateClient("EventService");
 
-        HttpResponseMessage? httpResponseMessage = null;
 
         var retryPolicy = Polly.Policy
-    .Handle<HttpRequestException>()
-    .Or<TaskCanceledException>()
-    .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
+            .Handle<HttpRequestException>()
+            .Or<TaskCanceledException>()
+            .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
 
-        httpResponseMessage = await retryPolicy.ExecuteAsync<HttpResponseMessage>(async () =>
+        var httpResponseMessage = await retryPolicy.ExecuteAsync(async () =>
         {
-            httpResponseMessage = await eventServiceHttpClient.GetAsync("/api/events");
-            httpResponseMessage.EnsureSuccessStatusCode();
-            return httpResponseMessage;
+            var response = await eventServiceHttpClient.GetAsync("/api/events");
+
+            response.EnsureSuccessStatusCode();
+
+            return response;
         });
+        
 
-        var events = await httpResponseMessage.Content.ReadFromJsonAsync<List<EventDto>>();
+        var result = await httpResponseMessage.Content.ReadFromJsonAsync<List<EventDto>>();
 
-        return events ?? new List<EventDto>();
+        return result ?? new List<EventDto>();
     }
 
 

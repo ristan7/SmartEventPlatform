@@ -46,7 +46,7 @@ public class CircuitBreaker
         if (State == CircuitBreakerState.Open)
         {
             throw new CircuitBreakerOpenException(
-    "CircuitBreaker is open. EventService is temporarily unavailable.");
+                "CircuitBreaker is open. EventService is temporarily unavailable.");
         }
 
         try

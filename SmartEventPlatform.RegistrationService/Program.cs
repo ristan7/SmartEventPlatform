@@ -23,7 +23,7 @@ namespace SmartEventPlatform.RegistrationService
             builder.Services.AddHttpClient("EventService", client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(3);
-                client.BaseAddress = new Uri(builder.Configuration.GetValue<string>("EventServiceEndpoint")!);
+                client.BaseAddress = new Uri(builder.Configuration["EventServiceEndpoint"]!);
             });
 
             builder.Services.AddControllers();
