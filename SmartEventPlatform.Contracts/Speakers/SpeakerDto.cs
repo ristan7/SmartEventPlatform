@@ -26,7 +26,5 @@ namespace SmartEventPlatform.Contracts.Speakers
         public string ExpertiseAreas { get; set; } = string.Empty;
 
         public string FullName => FirstName + " " + LastName;
-
-        public List<SpeakerEventItemDto> EventSpeakersParticipations { get; set; } = new();
     }
 }

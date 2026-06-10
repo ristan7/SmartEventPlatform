@@ -411,7 +411,7 @@ namespace SmartEventPlatformWeb.Controllers
 
         private async Task<List<SelectListItem>> GetLocationsSelectListAsync()
         {
-            var client = CreateEventServiceClient();
+            var client = CreateDirectoryServiceClient();
             var locations = await GetListAsync<LocationDto>(client, "api/locations");
 
             return locations
@@ -481,6 +481,11 @@ namespace SmartEventPlatformWeb.Controllers
         private HttpClient CreateEventServiceClient()
         {
             return _httpClientFactory.CreateClient("EventService");
+        }
+
+        private HttpClient CreateDirectoryServiceClient()
+        {
+            return _httpClientFactory.CreateClient("DirectoryService");
         }
 
         private HttpClient CreateRegistrationServiceClient()

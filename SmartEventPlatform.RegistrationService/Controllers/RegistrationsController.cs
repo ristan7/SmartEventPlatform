@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Polly;
 using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.Contracts.Registrations;
+using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.Models;
-using SmartEventPlatform.RegistrationService.Patterns;
 
 namespace SmartEventPlatform.RegistrationService.Controllers;
 
@@ -14,68 +14,47 @@ namespace SmartEventPlatform.RegistrationService.Controllers;
 public class RegistrationsController : ControllerBase
 {
     private readonly RegistrationDbContext _context;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly CircuitBreaker _circuitBreaker;
+    private readonly IEventServiceClient _eventServiceClient;
 
-    private static int _existsForEventCounter = 0;
-
-    public RegistrationsController(RegistrationDbContext context, IHttpClientFactory httpClientFactory, CircuitBreaker circuitBreaker)
+    public RegistrationsController(RegistrationDbContext context, IEventServiceClient eventServiceClient)
     {
         _context = context;
-        _httpClientFactory = httpClientFactory;
-        _circuitBreaker = circuitBreaker;
+        _eventServiceClient = eventServiceClient;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<RegistrationDto>>> GetAll()
     {
-        try
+
+        var events = await _eventServiceClient.GetAllEventsAsync();
+
+        var registrations = await _context.Registrations
+            .Include(r => r.Participant)
+            .OrderBy(r => r.RegistrationDate)
+            .ToListAsync();
+
+        var result = registrations.Select(r =>
         {
-            var events = await GetEventsWithCircuitBreakerAndRetryAsync();
+            var eventDto = events.FirstOrDefault(e => e.EventId == r.EventId);
 
-            var registrations = await _context.Registrations
-                .Include(r => r.Participant)
-                .OrderBy(r => r.RegistrationDate)
-                .ToListAsync();
-
-            var result = registrations.Select(r =>
+            return new RegistrationDto
             {
-                var eventDto = events.FirstOrDefault(e => e.EventId == r.EventId);
+                RegistrationId = r.RegistrationId,
+                RegistrationDate = r.RegistrationDate,
 
-                return new RegistrationDto
-                {
-                    RegistrationId = r.RegistrationId,
-                    RegistrationDate = r.RegistrationDate,
+                EventId = r.EventId,
+                EventName = eventDto?.EventName ?? $"Event #{r.EventId}",
 
-                    EventId = r.EventId,
-                    EventName = eventDto?.EventName ?? $"Event #{r.EventId}",
+                ParticipantId = r.ParticipantId,
+                ParticipantFullName = r.Participant != null
+                    ? r.Participant.FirstName + " " + r.Participant.LastName
+                    : string.Empty,
+                ParticipantEmail = r.Participant?.Email ?? string.Empty
+            };
+        }).ToList();
 
-                    ParticipantId = r.ParticipantId,
-                    ParticipantFullName = r.Participant != null
-                        ? r.Participant.FirstName + " " + r.Participant.LastName
-                        : string.Empty,
-                    ParticipantEmail = r.Participant?.Email ?? string.Empty
-                };
-            }).ToList();
+        return Ok(result);
 
-            return Ok(result);
-        }
-        catch (CircuitBreakerOpenException)
-        {
-            return StatusCode(503, "EventService is temporarily unavailable. Circuit breaker is open.");
-        }
-        catch (TaskCanceledException)
-        {
-            return StatusCode(504, "EventService timeout expired while loading registrations.");
-        }
-        catch (HttpRequestException)
-        {
-            return StatusCode(503, "EventService is unavailable after retry attempts.");
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
-        }
     }
 
     [HttpGet("{id:long}")]
@@ -90,43 +69,25 @@ public class RegistrationsController : ControllerBase
             return NotFound();
         }
 
-        try
+
+        var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(registration.EventId);
+
+        var dto = new RegistrationDto
         {
-            var eventInfo = await GetEventRegistrationInfoWithCircuitBreakerAndRetryAsync(registration.EventId);
+            RegistrationId = registration.RegistrationId,
+            RegistrationDate = registration.RegistrationDate,
 
-            var dto = new RegistrationDto
-            {
-                RegistrationId = registration.RegistrationId,
-                RegistrationDate = registration.RegistrationDate,
+            EventId = registration.EventId,
+            EventName = eventInfo.EventName,
 
-                EventId = registration.EventId,
-                EventName = eventInfo.EventName,
-
-                ParticipantId = registration.ParticipantId,
-                ParticipantFullName = registration.Participant != null
+            ParticipantId = registration.ParticipantId,
+            ParticipantFullName = registration.Participant != null
                     ? registration.Participant.FirstName + " " + registration.Participant.LastName
                     : string.Empty,
-                ParticipantEmail = registration.Participant?.Email ?? string.Empty
-            };
+            ParticipantEmail = registration.Participant?.Email ?? string.Empty
+        };
 
-            return Ok(dto);
-        }
-        catch (CircuitBreakerOpenException)
-        {
-            return StatusCode(503, "EventService is temporarily unavailable. Circuit breaker is open.");
-        }
-        catch (TaskCanceledException)
-        {
-            return StatusCode(504, "EventService timeout expired while loading registration details.");
-        }
-        catch (HttpRequestException)
-        {
-            return StatusCode(503, "EventService is unavailable after retry attempts.");
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
-        }
+        return Ok(dto);
     }
 
     [HttpPost]
@@ -145,57 +106,39 @@ public class RegistrationsController : ControllerBase
             return BadRequest("Selected participant does not exist.");
         }
 
-        try
+
+        var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(dto.EventId);
+
+        if (!eventInfo.Exists)
         {
-            var eventInfo = await GetEventRegistrationInfoWithCircuitBreakerAndRetryAsync(dto.EventId);
-
-            if (!eventInfo.Exists)
-            {
-                return BadRequest("Selected event does not exist.");
-            }
-
-            var alreadyRegistered = await AlreadyRegistered(dto.EventId, dto.ParticipantId);
-
-            if (alreadyRegistered)
-            {
-                return BadRequest("This participant is already registered for the selected event.");
-            }
-
-            var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity);
-
-            if (capacityReached)
-            {
-                return BadRequest("Registration is not possible because the registration location capacity has been reached.");
-            }
-
-            var registration = new Registration
-            {
-                EventId = dto.EventId,
-                ParticipantId = dto.ParticipantId,
-                RegistrationDate = dto.RegistrationDate
-            };
-
-            _context.Registrations.Add(registration);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetById), new { id = registration.RegistrationId }, registration.RegistrationId);
+            return BadRequest("Selected event does not exist.");
         }
-        catch (CircuitBreakerOpenException)
+
+        var alreadyRegistered = await AlreadyRegistered(dto.EventId, dto.ParticipantId);
+
+        if (alreadyRegistered)
         {
-            return StatusCode(503, "Registration cannot be created because EventService circuit breaker is open.");
+            return BadRequest("This participant is already registered for the selected event.");
         }
-        catch (TaskCanceledException)
+
+        var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity);
+
+        if (capacityReached)
         {
-            return StatusCode(504, "Registration cannot be created because EventService timeout expired.");
+            return BadRequest("Registration is not possible because the registration location capacity has been reached.");
         }
-        catch (HttpRequestException)
+
+        var registration = new Registration
         {
-            return StatusCode(503, "Registration cannot be created because EventService is unavailable after retry attempts.");
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
-        }
+            EventId = dto.EventId,
+            ParticipantId = dto.ParticipantId,
+            RegistrationDate = dto.RegistrationDate
+        };
+
+        _context.Registrations.Add(registration);
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetById), new { id = registration.RegistrationId }, registration.RegistrationId);
     }
 
     [HttpPut("{id:long}")]
@@ -221,65 +164,46 @@ public class RegistrationsController : ControllerBase
             return BadRequest("Selected participant does not exist.");
         }
 
+        var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(dto.EventId);
+
+        if (!eventInfo.Exists)
+        {
+            return BadRequest("Selected event does not exist.");
+        }
+
+        var duplicateRegistration = await DuplicateRegistrationExistsAsync(dto.EventId, dto.ParticipantId, id);
+
+        if (duplicateRegistration)
+        {
+            return BadRequest("This participant is already registered for the selected event.");
+        }
+
+        var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity, id);
+
+        if (capacityReached)
+        {
+            return BadRequest("Registration is not possible because the event location capacity has been reached.");
+        }
+
+        registration.EventId = dto.EventId;
+        registration.ParticipantId = dto.ParticipantId;
+        registration.RegistrationDate = dto.RegistrationDate;
+
         try
         {
-            var eventInfo = await GetEventRegistrationInfoWithCircuitBreakerAndRetryAsync(dto.EventId);
-
-            if (!eventInfo.Exists)
-            {
-                return BadRequest("Selected event does not exist.");
-            }
-
-            var duplicateRegistration = await DuplicateRegistrationExistsAsync(dto.EventId, dto.ParticipantId, id);
-
-            if (duplicateRegistration)
-            {
-                return BadRequest("This participant is already registered for the selected event.");
-            }
-
-            var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity, id);
-
-            if (capacityReached)
-            {
-                return BadRequest("Registration is not possible because the event location capacity has been reached.");
-            }
-
-            registration.EventId = dto.EventId;
-            registration.ParticipantId = dto.ParticipantId;
-            registration.RegistrationDate = dto.RegistrationDate;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await RegistrationExistsAsync(id))
-                {
-                    return NotFound();
-                }
-
-                throw;
-            }
-
-            return NoContent();
+            await _context.SaveChangesAsync();
         }
-        catch (CircuitBreakerOpenException)
+        catch (DbUpdateConcurrencyException)
         {
-            return StatusCode(503, "Registration cannot be updated because EventService circuit breaker is open.");
+            if (!await RegistrationExistsAsync(id))
+            {
+                return NotFound();
+            }
+
+            throw;
         }
-        catch (TaskCanceledException)
-        {
-            return StatusCode(504, "Registration cannot be updated because EventService timeout expired.");
-        }
-        catch (HttpRequestException)
-        {
-            return StatusCode(503, "Registration cannot be updated because EventService is unavailable after retry attempts.");
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
-        }
+
+        return NoContent();
     }
 
     [HttpGet("{id:long}/delete-info")]
@@ -294,43 +218,25 @@ public class RegistrationsController : ControllerBase
             return NotFound();
         }
 
-        try
+
+        var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(registration.EventId);
+
+        var dto = new RegistrationDto
         {
-            var eventInfo = await GetEventRegistrationInfoWithCircuitBreakerAndRetryAsync(registration.EventId);
+            RegistrationId = registration.RegistrationId,
+            RegistrationDate = registration.RegistrationDate,
 
-            var dto = new RegistrationDto
-            {
-                RegistrationId = registration.RegistrationId,
-                RegistrationDate = registration.RegistrationDate,
+            EventId = registration.EventId,
+            EventName = eventInfo.EventName,
 
-                EventId = registration.EventId,
-                EventName = eventInfo.EventName,
-
-                ParticipantId = registration.ParticipantId,
-                ParticipantFullName = registration.Participant != null
+            ParticipantId = registration.ParticipantId,
+            ParticipantFullName = registration.Participant != null
                     ? registration.Participant.FirstName + " " + registration.Participant.LastName
                     : string.Empty,
-                ParticipantEmail = registration.Participant?.Email ?? string.Empty
-            };
+            ParticipantEmail = registration.Participant?.Email ?? string.Empty
+        };
 
-            return Ok(dto);
-        }
-        catch (CircuitBreakerOpenException)
-        {
-            return StatusCode(503, "EventService is temporarily unavailable. Circuit breaker is open.");
-        }
-        catch (TaskCanceledException)
-        {
-            return StatusCode(504, "EventService timeout expired while loading delete information.");
-        }
-        catch (HttpRequestException)
-        {
-            return StatusCode(503, "EventService is unavailable after retry attempts.");
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, "An unexpected error occurred while communicating with EventService.");
-        }
+        return Ok(dto);
     }
 
     [HttpDelete("{id:long}")]
@@ -401,76 +307,4 @@ public class RegistrationsController : ControllerBase
 
         return currentRegistrationCount >= capacity;
     }
-
-    private async Task<EventRegistrationInfoDto> GetEventRegistrationInfoWithCircuitBreakerAndRetryAsync(long eventId)
-    {
-        return await _circuitBreaker.ExecuteAsync(async () =>
-        {
-            return await GetEventRegistrationInfoWithPollyRetryAsync(eventId);
-        });
-    }
-
-    private async Task<List<EventDto>> GetEventsWithCircuitBreakerAndRetryAsync()
-    {
-        return await _circuitBreaker.ExecuteAsync(async () =>
-        {
-            return await GetEventsWithPollyRetryAsync();
-        });
-    }
-
-    private async Task<EventRegistrationInfoDto> GetEventRegistrationInfoWithPollyRetryAsync(long eventId)
-    {
-        var eventServiceHttpClient = _httpClientFactory.CreateClient("EventService");
-
-        var retryPolicy = Polly.Policy
-            .Handle<HttpRequestException>()
-            .Or<TaskCanceledException>()
-            .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
-
-        var httpResponseMessage = await retryPolicy.ExecuteAsync(async () =>
-        {
-            var response = await eventServiceHttpClient.GetAsync($"/api/events/{eventId}/registration-info");
-
-            response.EnsureSuccessStatusCode();
-
-            return response;
-        });
-       
-
-        var result = await httpResponseMessage.Content.ReadFromJsonAsync<EventRegistrationInfoDto>();
-
-        if (result == null)
-        {
-            throw new HttpRequestException("EventService returned empty registration info response.");
-        }
-
-        return result;
-    }
-
-    private async Task<List<EventDto>> GetEventsWithPollyRetryAsync()
-    {
-        var eventServiceHttpClient = _httpClientFactory.CreateClient("EventService");
-
-
-        var retryPolicy = Polly.Policy
-            .Handle<HttpRequestException>()
-            .Or<TaskCanceledException>()
-            .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
-
-        var httpResponseMessage = await retryPolicy.ExecuteAsync(async () =>
-        {
-            var response = await eventServiceHttpClient.GetAsync("/api/events");
-
-            response.EnsureSuccessStatusCode();
-
-            return response;
-        });
-        
-
-        var result = await httpResponseMessage.Content.ReadFromJsonAsync<List<EventDto>>();
-
-        return result ?? new List<EventDto>();
-    }
-
-
 }

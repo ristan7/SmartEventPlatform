@@ -1,0 +1,6 @@
+@SmartEventPlatform.DirectoryService_HostAddress = http://localhost:5003
+
+GET {{SmartEventPlatform.DirectoryService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

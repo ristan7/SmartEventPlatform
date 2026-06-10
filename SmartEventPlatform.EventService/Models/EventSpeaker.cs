@@ -10,7 +10,7 @@
         public Event? Event { get; set; }
 
         public long SpeakerId { get; set; }
-        public Speaker? Speaker { get; set; }
+        public string SpeakerFullNameSnapshot { get; set; } = string.Empty;
 
     }
 }

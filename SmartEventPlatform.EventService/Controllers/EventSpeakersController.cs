@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.EventSpeakers;
+using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.Models;
 
@@ -12,10 +13,12 @@ namespace SmartEventPlatform.EventService.Controllers
     public class EventSpeakersController : ControllerBase
     {
         private readonly EventDbContext _context;
+        private readonly IDirectoryServiceClient _directoryServiceClient;
 
-        public EventSpeakersController(EventDbContext context)
+        public EventSpeakersController(EventDbContext context, IDirectoryServiceClient directoryServiceClient)
         {
             _context = context;
+            _directoryServiceClient = directoryServiceClient;
         }
 
         [HttpGet]
@@ -23,7 +26,6 @@ namespace SmartEventPlatform.EventService.Controllers
         {
             var eventSpeakers = await _context.EventSpeakers
                 .Include(es => es.Event)
-                .Include(es => es.Speaker)
                 .OrderBy(es => es.Event != null ? es.Event.EventName : string.Empty)
                 .ThenBy(es => es.Time)
                 .Select(es => new EventSpeakerDto
@@ -32,9 +34,7 @@ namespace SmartEventPlatform.EventService.Controllers
                     EventId = es.EventId,
                     EventName = es.Event != null ? es.Event.EventName : string.Empty,
                     SpeakerId = es.SpeakerId,
-                    SpeakerFullName = es.Speaker != null
-                        ? es.Speaker.FirstName + " " + es.Speaker.LastName
-                        : string.Empty,
+                    SpeakerFullName = es.SpeakerFullNameSnapshot,
                     Topic = es.Topic,
                     Time = es.Time
                 })
@@ -48,7 +48,6 @@ namespace SmartEventPlatform.EventService.Controllers
         {
             var eventSpeaker = await _context.EventSpeakers
                 .Include(es => es.Event)
-                .Include(es => es.Speaker)
                 .Where(es => es.EventSpeakerId == id)
                 .Select(es => new EventSpeakerDto
                 {
@@ -56,9 +55,7 @@ namespace SmartEventPlatform.EventService.Controllers
                     EventId = es.EventId,
                     EventName = es.Event != null ? es.Event.EventName : string.Empty,
                     SpeakerId = es.SpeakerId,
-                    SpeakerFullName = es.Speaker != null
-                        ? es.Speaker.FirstName + " " + es.Speaker.LastName
-                        : string.Empty,
+                    SpeakerFullName = es.SpeakerFullNameSnapshot,
                     Topic = es.Topic,
                     Time = es.Time
                 })
@@ -70,6 +67,28 @@ namespace SmartEventPlatform.EventService.Controllers
             }
 
             return Ok(eventSpeaker);
+        }
+
+        [HttpGet("by-speaker/{speakerId:long}")]
+        public async Task<ActionResult<IEnumerable<EventSpeakerDto>>> GetBySpeaker(long speakerId)
+        {
+            var eventSpeakers = await _context.EventSpeakers
+                .Include(es => es.Event)
+                .Where(es => es.SpeakerId == speakerId)
+                .OrderBy(es => es.Time)
+                .Select(es => new EventSpeakerDto
+                {
+                    EventSpeakerId = es.EventSpeakerId,
+                    EventId = es.EventId,
+                    EventName = es.Event != null ? es.Event.EventName : string.Empty,
+                    SpeakerId = es.SpeakerId,
+                    SpeakerFullName = es.SpeakerFullNameSnapshot,
+                    Topic = es.Topic,
+                    Time = es.Time
+                })
+                .ToListAsync();
+
+            return Ok(eventSpeakers);
         }
 
         [HttpPost]
@@ -88,10 +107,9 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest("Selected event does not exist.");
             }
 
-            var speakerExists = await _context.Speakers
-                .AnyAsync(s => s.SpeakerId == dto.SpeakerId);
+            var speaker = await _directoryServiceClient.GetSpeakerAsync(dto.SpeakerId);
 
-            if (!speakerExists)
+            if (speaker == null)
             {
                 return BadRequest("Selected speaker does not exist.");
             }
@@ -107,6 +125,7 @@ namespace SmartEventPlatform.EventService.Controllers
             {
                 EventId = dto.EventId,
                 SpeakerId = dto.SpeakerId,
+                SpeakerFullNameSnapshot = speaker.FullName,
                 Topic = dto.Topic,
                 Time = dto.Time
             };
@@ -140,10 +159,9 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest("Selected event does not exist.");
             }
 
-            var speakerExists = await _context.Speakers
-                .AnyAsync(s => s.SpeakerId == dto.SpeakerId);
+            var speaker = await _directoryServiceClient.GetSpeakerAsync(dto.SpeakerId);
 
-            if (!speakerExists)
+            if (speaker == null)
             {
                 return BadRequest("Selected speaker does not exist.");
             }
@@ -157,6 +175,7 @@ namespace SmartEventPlatform.EventService.Controllers
 
             eventSpeaker.EventId = dto.EventId;
             eventSpeaker.SpeakerId = dto.SpeakerId;
+            eventSpeaker.SpeakerFullNameSnapshot = speaker.FullName;
             eventSpeaker.Topic = dto.Topic;
             eventSpeaker.Time = dto.Time;
 
@@ -182,7 +201,6 @@ namespace SmartEventPlatform.EventService.Controllers
         {
             var eventSpeaker = await _context.EventSpeakers
                 .Include(es => es.Event)
-                .Include(es => es.Speaker)
                 .Where(es => es.EventSpeakerId == id)
                 .Select(es => new EventSpeakerDto
                 {
@@ -190,9 +208,7 @@ namespace SmartEventPlatform.EventService.Controllers
                     EventId = es.EventId,
                     EventName = es.Event != null ? es.Event.EventName : string.Empty,
                     SpeakerId = es.SpeakerId,
-                    SpeakerFullName = es.Speaker != null
-                        ? es.Speaker.FirstName + " " + es.Speaker.LastName
-                        : string.Empty,
+                    SpeakerFullName = es.SpeakerFullNameSnapshot,
                     Topic = es.Topic,
                     Time = es.Time
                 })
@@ -220,6 +236,13 @@ namespace SmartEventPlatform.EventService.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        [HttpGet("exists-for-speaker/{speakerId:long}")]
+        public async Task<ActionResult<bool>> ExistsForSpeaker(long speakerId)
+        {
+            var exists = await _context.EventSpeakers.AnyAsync(es => es.SpeakerId == speakerId);
+            return Ok(exists);
         }
 
         private async Task<bool> EventSpeakerExistsAsync(long id)

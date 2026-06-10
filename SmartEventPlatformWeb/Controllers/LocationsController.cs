@@ -19,7 +19,7 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 var locations = await GetListAsync<LocationDto>(client, "api/locations");
 
                 var vm = locations
@@ -60,7 +60,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
 
                 if (location == null)
@@ -117,7 +117,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 await PostAndReadIdAsync(client, "api/locations", dto);
 
                 return RedirectToAction(nameof(Index));
@@ -147,7 +147,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
 
                 if (location == null)
@@ -205,7 +205,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 await PutAsync(client, $"api/locations/{id}", dto);
 
                 return RedirectToAction(nameof(Index));
@@ -235,7 +235,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
 
                 if (location == null)
@@ -271,7 +271,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
 
                 location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
 
@@ -306,9 +306,9 @@ namespace SmartEventPlatformWeb.Controllers
             return View("Delete", vm);
         }
 
-        private HttpClient CreateEventServiceClient()
+        private HttpClient CreateDirectoryServiceClient()
         {
-            return _httpClientFactory.CreateClient("EventService");
+            return _httpClientFactory.CreateClient("DirectoryService");
         }
 
         private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)

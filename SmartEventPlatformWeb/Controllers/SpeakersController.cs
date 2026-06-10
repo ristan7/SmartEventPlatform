@@ -20,7 +20,7 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 var speakers = await GetListAsync<SpeakerDto>(client, "api/speakers");
 
                 var vm = speakers
@@ -63,16 +63,17 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var directoryClient = CreateDirectoryServiceClient();
+                var eventClient = CreateEventServiceClient();
 
-                var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                var speaker = await GetNullableAsync<SpeakerDto>(directoryClient, $"api/speakers/{id.Value}");
 
                 if (speaker == null)
                 {
                     return NotFound();
                 }
 
-                var eventSpeakers = await GetListAsync<EventSpeakerDto>(client, "api/eventspeakers");
+                var eventSpeakers = await GetListAsync<EventSpeakerDto>(eventClient, $"api/eventspeakers/by-speaker/{id.Value}");
 
                 var vm = new SpeakerDetailsViewModel
                 {
@@ -137,7 +138,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 await PostAndReadIdAsync(client, "api/speakers", dto);
 
                 return RedirectToAction(nameof(Index));
@@ -167,7 +168,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
 
                 if (speaker == null)
@@ -227,7 +228,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 await PutAsync(client, $"api/speakers/{id}", dto);
 
                 return RedirectToAction(nameof(Index));
@@ -257,7 +258,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
                 var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
 
                 if (speaker == null)
@@ -293,7 +294,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
 
                 speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id}");
 
@@ -343,6 +344,11 @@ namespace SmartEventPlatformWeb.Controllers
         private HttpClient CreateEventServiceClient()
         {
             return _httpClientFactory.CreateClient("EventService");
+        }
+
+        private HttpClient CreateDirectoryServiceClient()
+        {
+            return _httpClientFactory.CreateClient("DirectoryService");
         }
 
         private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)

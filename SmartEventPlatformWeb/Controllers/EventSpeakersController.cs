@@ -402,7 +402,7 @@ namespace SmartEventPlatformWeb.Controllers
 
         private async Task<List<SelectListItem>> GetSpeakersSelectListAsync()
         {
-            var client = CreateEventServiceClient();
+            var client = CreateDirectoryServiceClient();
             var speakers = await GetListAsync<SpeakerDto>(client, "api/speakers");
 
             return speakers
@@ -459,6 +459,11 @@ namespace SmartEventPlatformWeb.Controllers
         private HttpClient CreateEventServiceClient()
         {
             return _httpClientFactory.CreateClient("EventService");
+        }
+
+        private HttpClient CreateDirectoryServiceClient()
+        {
+            return _httpClientFactory.CreateClient("DirectoryService");
         }
 
         private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
