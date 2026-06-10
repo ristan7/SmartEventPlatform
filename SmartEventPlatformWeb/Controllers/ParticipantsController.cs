@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SmartEventPlatform.Contracts.Participants;
+using SmartEventPlatformWeb.Infrastructure;
 using SmartEventPlatformWeb.ViewModels.Participants;
 using System.Net;
 using System.Net.Http.Json;
@@ -20,7 +21,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateRegistrationServiceClient();
-                var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
+                //var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
+                var participants = await ApiHttpHelper.GetListAsync<ParticipantDto>(client, "api/participants");
 
                 var vm = participants
                     .OrderBy(p => p.LastName)
@@ -62,7 +64,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateRegistrationServiceClient();
-                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                //var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
 
                 if (participant == null)
                 {
@@ -119,7 +122,14 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateRegistrationServiceClient();
-                await PostAndReadIdAsync(client, "api/participants", dto);
+                //await PostAndReadIdAsync(client, "api/participants", dto);
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/participants", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The participant could not be created.");
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -149,7 +159,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateRegistrationServiceClient();
-                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                //var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
 
                 if (participant == null)
                 {
@@ -207,7 +218,14 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateRegistrationServiceClient();
-                await PutAsync(client, $"api/participants/{id}", dto);
+                //await PutAsync(client, $"api/participants/{id}", dto);
+                var result = await ApiHttpHelper.PutAsync(client, $"api/participants/{id}", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The participant could not be updated.");
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -237,7 +255,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateRegistrationServiceClient();
-                var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                //var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
 
                 if (participant == null)
                 {
@@ -274,14 +293,23 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 var client = CreateRegistrationServiceClient();
 
-                participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
+                //participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
+                participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
 
                 if (participant == null)
                 {
                     return NotFound();
                 }
 
-                await DeleteAsync(client, $"api/participants/{id}");
+                //await DeleteAsync(client, $"api/participants/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"api/participants/{id}");
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The participant could not be deleted.");
+                    var deleteVm = MapToDeleteViewModel(participant);
+                    return View("Delete", deleteVm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -321,79 +349,6 @@ namespace SmartEventPlatformWeb.Controllers
         private HttpClient CreateRegistrationServiceClient()
         {
             return _httpClientFactory.CreateClient("RegistrationService");
-        }
-
-        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
-        {
-            var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
-        }
-
-        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
-        {
-            var response = await client.GetAsync(url);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                return default;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<T>();
-        }
-
-        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PostAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<long>();
-        }
-
-        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PutAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task DeleteAsync(HttpClient client, string url)
-        {
-            var response = await client.DeleteAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
-        {
-            var message = await response.Content.ReadAsStringAsync();
-
-            if (string.IsNullOrWhiteSpace(message))
-            {
-                message = $"API request failed with status code {(int)response.StatusCode}.";
-            }
-
-            return new HttpRequestException(message, null, response.StatusCode);
         }
     }
 }
