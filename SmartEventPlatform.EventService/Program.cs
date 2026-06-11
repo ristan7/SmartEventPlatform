@@ -1,7 +1,9 @@
 
 using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
-using SmartEventPlatform.EventService.Patterns;
+using SmartEventPlatform.EventService.ErrorHandling;
+using SmartEventPlatform.EventService.Resilience;
 
 namespace SmartEventPlatform.EventService
 {
@@ -16,12 +18,21 @@ namespace SmartEventPlatform.EventService
             builder.Services.AddDbContext<EventDbContext>(options =>
                     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            builder.Services.AddSingleton<CircuitBreaker>(sp =>
-                new CircuitBreaker(3, TimeSpan.FromSeconds(10)));
+            builder.Services.AddProblemDetails();
+            builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-            builder.Services.AddHttpClient("RegistrationService", client =>
+            builder.Services.AddSingleton<DirectoryServiceCircuitBreaker>();
+            builder.Services.AddSingleton<RegistrationServiceCircuitBreaker>();
+
+            builder.Services.AddHttpClient<IDirectoryServiceClient, DirectoryServiceClient>(client =>
             {
-                client.BaseAddress = new Uri(builder.Configuration["RegistrationServiceEndpoint"]!);
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:DirectoryService"]!);
+                client.Timeout = TimeSpan.FromSeconds(3);
+            });
+
+            builder.Services.AddHttpClient<IRegistrationServiceClient, RegistrationServiceClient>(client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:RegistrationService"]!);
                 client.Timeout = TimeSpan.FromSeconds(3);
             });
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -38,6 +49,7 @@ namespace SmartEventPlatform.EventService
                 app.UseSwaggerUI();
             }
 
+            app.UseExceptionHandler();
             app.UseHttpsRedirection();
 
             app.UseAuthorization();

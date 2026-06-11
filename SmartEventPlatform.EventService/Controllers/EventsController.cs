@@ -2,9 +2,10 @@
 using Microsoft.EntityFrameworkCore;
 using Polly;
 using SmartEventPlatform.Contracts.Events;
+using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.Models;
-using SmartEventPlatform.EventService.Patterns;
+using System.Diagnostics.Metrics;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
@@ -13,27 +14,27 @@ namespace SmartEventPlatform.EventService.Controllers
     public class EventsController : ControllerBase
     {
         private readonly EventDbContext _context;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly CircuitBreaker _circuitBreaker;
+        private readonly IDirectoryServiceClient _directoryServiceClient;
+        private readonly IRegistrationServiceClient _registrationServiceClient;
 
-        
-        private static int _counter = 0;
+        //private static int _counter = 0;
 
-        public EventsController(EventDbContext context, IHttpClientFactory httpClientFactory, CircuitBreaker circuitBreaker)
+        public EventsController(
+            EventDbContext context,
+            IDirectoryServiceClient directoryServiceClient,
+            IRegistrationServiceClient registrationServiceClient)
         {
             _context = context;
-            _httpClientFactory = httpClientFactory;
-            _circuitBreaker = circuitBreaker;
+            _directoryServiceClient = directoryServiceClient;
+            _registrationServiceClient = registrationServiceClient;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EventDto>>> GetAll()
         {
             var events = await _context.Events
-                .Include(e => e.Location)
                 .Include(e => e.EventType)
                 .Include(e => e.EventSpeakers)
-                    .ThenInclude(es => es.Speaker)
                 .OrderBy(e => e.EventDateTime)
                 .Select(e => new EventDto
                 {
@@ -45,18 +46,16 @@ namespace SmartEventPlatform.EventService.Controllers
                     RegistrationFee = e.RegistrationFee,
 
                     LocationId = e.LocationId,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
-                    LocationAddress = e.Location != null ? e.Location.Address : string.Empty,
-                    Capacity = e.Location != null ? e.Location.Capacity : 0,
+                    LocationName = e.LocationNameSnapshot,
+                    LocationAddress = e.LocationAddressSnapshot,
+                    Capacity = e.LocationCapacitySnapshot,
 
                     EventTypeId = e.EventTypeId,
                     EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
 
                     Speakers = e.EventSpeakers
                         .OrderBy(es => es.Time)
-                        .Select(es => es.Speaker != null
-                            ? es.Speaker.FirstName + " " + es.Speaker.LastName
-                            : string.Empty)
+                        .Select(es => es.SpeakerFullNameSnapshot)
                         .ToList()
                 })
                 .ToListAsync();
@@ -68,10 +67,8 @@ namespace SmartEventPlatform.EventService.Controllers
         public async Task<ActionResult<EventDto>> GetById(long id)
         {
             var eventDto = await _context.Events
-                .Include(e => e.Location)
                 .Include(e => e.EventType)
                 .Include(e => e.EventSpeakers)
-                    .ThenInclude(es => es.Speaker)
                 .Where(e => e.EventId == id)
                 .Select(e => new EventDto
                 {
@@ -83,18 +80,16 @@ namespace SmartEventPlatform.EventService.Controllers
                     RegistrationFee = e.RegistrationFee,
 
                     LocationId = e.LocationId,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
-                    LocationAddress = e.Location != null ? e.Location.Address : string.Empty,
-                    Capacity = e.Location != null ? e.Location.Capacity : 0,
+                    LocationName = e.LocationNameSnapshot,
+                    LocationAddress = e.LocationAddressSnapshot,
+                    Capacity = e.LocationCapacitySnapshot,
 
                     EventTypeId = e.EventTypeId,
                     EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
 
                     Speakers = e.EventSpeakers
                         .OrderBy(es => es.Time)
-                        .Select(es => es.Speaker != null
-                            ? es.Speaker.FirstName + " " + es.Speaker.LastName
-                            : string.Empty)
+                        .Select(es => es.SpeakerFullNameSnapshot)
                         .ToList()
                 })
                 .FirstOrDefaultAsync();
@@ -107,13 +102,31 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(eventDto);
         }
 
+        [HttpGet("exists-for-location/{locationId:long}")]
+        public async Task<ActionResult<bool>> ExistsForLocation(long locationId)
+        {
+            var exists = await _context.Events
+                .AnyAsync(e => e.LocationId == locationId);
+
+            return Ok(exists);
+        }
+
+        [HttpGet("exists-for-speaker/{speakerId:long}")]
+        public async Task<ActionResult<bool>> ExistsForSpeaker(long speakerId)
+        {
+            var exists = await _context.EventSpeakers
+                .AnyAsync(es => es.SpeakerId == speakerId);
+
+            return Ok(exists);
+        }
+
         [HttpGet("{id:long}/registration-info")]
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
 
-            //_counter++;
+            //var attempt = Interlocked.Increment(ref _counter);
 
-            //if (_counter % 3 != 0)
+            //if (attempt % 3 != 0)
             //{
             //    return StatusCode(500, "Simulated temporary EventService error.");
             //}
@@ -123,14 +136,13 @@ namespace SmartEventPlatform.EventService.Controllers
             //return StatusCode(500, "Simulated EventService failure.");
 
             var dto = await _context.Events
-                .Include(e => e.Location)
                 .Where(e => e.EventId == id)
                 .Select(e => new EventRegistrationInfoDto
                 {
                     EventId = e.EventId,
                     EventName = e.EventName,
                     EventDateTime = e.EventDateTime,
-                    Capacity = e.Location != null ? e.Location.Capacity : 0,
+                    Capacity = e.LocationCapacitySnapshot,
                     Exists = true
                 })
                 .FirstOrDefaultAsync();
@@ -155,10 +167,9 @@ namespace SmartEventPlatform.EventService.Controllers
                 return ValidationProblem(ModelState);
             }
 
-            var locationExists = await _context.Locations
-                .AnyAsync(l => l.LocationId == dto.LocationId);
+            var location = await _directoryServiceClient.GetLocationAsync(dto.LocationId);
 
-            if (!locationExists)
+            if (location == null)
             {
                 return BadRequest("Selected location does not exist.");
             }
@@ -179,6 +190,9 @@ namespace SmartEventPlatform.EventService.Controllers
                 DurationInMinutes = dto.DurationInMinutes,
                 RegistrationFee = dto.RegistrationFee,
                 LocationId = dto.LocationId,
+                LocationNameSnapshot = location.LocationName,
+                LocationAddressSnapshot = location.Address,
+                LocationCapacitySnapshot = location.Capacity,
                 EventTypeId = dto.EventTypeId
             };
 
@@ -203,10 +217,9 @@ namespace SmartEventPlatform.EventService.Controllers
                 return NotFound();
             }
 
-            var locationExists = await _context.Locations
-                .AnyAsync(l => l.LocationId == dto.LocationId);
+            var location = await _directoryServiceClient.GetLocationAsync(dto.LocationId);
 
-            if (!locationExists)
+            if (location == null)
             {
                 return BadRequest("Selected location does not exist.");
             }
@@ -225,6 +238,9 @@ namespace SmartEventPlatform.EventService.Controllers
             existingEvent.DurationInMinutes = dto.DurationInMinutes;
             existingEvent.RegistrationFee = dto.RegistrationFee;
             existingEvent.LocationId = dto.LocationId;
+            existingEvent.LocationNameSnapshot = location.LocationName;
+            existingEvent.LocationAddressSnapshot = location.Address;
+            existingEvent.LocationCapacitySnapshot = location.Capacity;
             existingEvent.EventTypeId = dto.EventTypeId;
 
             try
@@ -248,7 +264,6 @@ namespace SmartEventPlatform.EventService.Controllers
         public async Task<ActionResult<EventDto>> GetDeleteInfo(long id)
         {
             var eventDto = await _context.Events
-                .Include(e => e.Location)
                 .Include(e => e.EventType)
                 .Where(e => e.EventId == id)
                 .Select(e => new EventDto
@@ -257,7 +272,9 @@ namespace SmartEventPlatform.EventService.Controllers
                     EventName = e.EventName,
                     EventDateTime = e.EventDateTime,
                     LocationId = e.LocationId,
-                    LocationName = e.Location != null ? e.Location.LocationName : string.Empty,
+                    LocationName = e.LocationNameSnapshot,
+                    LocationAddress = e.LocationAddressSnapshot,
+                    Capacity = e.LocationCapacitySnapshot,
                     EventTypeId = e.EventTypeId,
                     EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
                     Agenda = e.Agenda,
@@ -295,30 +312,11 @@ namespace SmartEventPlatform.EventService.Controllers
                 deleteErrors.Add("This event cannot be deleted because it has assigned speakers.");
             }
 
-            try
-            {
-                var hasRegistrations = await EventHasRegistrationsWithCircuitBreakerAndRetryAsync(id);
+            var hasRegistrations = await _registrationServiceClient.EventHasRegistrationsAsync(id);
 
-                if (hasRegistrations)
-                {
-                    deleteErrors.Add("This event cannot be deleted because it has participant registrations.");
-                }
-            }
-            catch (CircuitBreakerOpenException)
+            if (hasRegistrations)
             {
-                return StatusCode(503, "Event cannot be deleted because RegistrationService circuit breaker is open.");
-            }
-            catch (TaskCanceledException)
-            {
-                return StatusCode(504, "Event cannot be deleted because RegistrationService timeout expired.");
-            }
-            catch (HttpRequestException)
-            {
-                return StatusCode(503, "Event cannot be deleted because RegistrationService is unavailable after retry attempts.");
-            }
-            catch (Exception)
-            {
-                return StatusCode(500, "An unexpected error occurred while communicating with RegistrationService.");
+                deleteErrors.Add("This event cannot be deleted because it has participant registrations.");
             }
 
             if (deleteErrors.Any())
@@ -337,38 +335,6 @@ namespace SmartEventPlatform.EventService.Controllers
             {
                 return BadRequest("This event cannot be deleted because it is used by other records.");
             }
-        }
-
-        private async Task<bool> EventHasRegistrationsWithCircuitBreakerAndRetryAsync(long eventId)
-        {
-            return await _circuitBreaker.ExecuteAsync(async () =>
-            {
-                return await EventHasRegistrationsWithPollyRetryAsync(eventId);
-            });
-        }
-
-        private async Task<bool> EventHasRegistrationsWithPollyRetryAsync(long eventId)
-        {
-            var registrationServiceHttpClient = _httpClientFactory.CreateClient("RegistrationService");
-
-            var retryPolicy = Polly.Policy
-                .Handle<HttpRequestException>()
-                .Or<TaskCanceledException>()
-                .WaitAndRetryAsync(2, attempt => TimeSpan.FromMilliseconds(250));
-
-            var httpResponseMessage = await retryPolicy.ExecuteAsync(async () =>
-            {
-                var response = await registrationServiceHttpClient
-                    .GetAsync($"/api/registrations/exists-for-event/{eventId}");
-
-                response.EnsureSuccessStatusCode();
-
-                return response;
-            });
-
-            var result = await httpResponseMessage.Content.ReadFromJsonAsync<bool>();
-
-            return result;
         }
 
         private async Task<bool> EventExistsAsync(long id)

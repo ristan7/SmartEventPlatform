@@ -7,6 +7,7 @@ using SmartEventPlatform.Contracts.Locations;
 using SmartEventPlatformWeb.ViewModels.Events;
 using System.Net;
 using System.Net.Http.Json;
+using SmartEventPlatformWeb.Infrastructure;
 
 namespace SmartEventPlatformWeb.Controllers
 {
@@ -24,7 +25,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateEventServiceClient();
-                var events = await GetListAsync<EventDto>(client, "api/events");
+                //var events = await GetListAsync<EventDto>(client, "api/events");
+                var events = await ApiHttpHelper.GetListAsync<EventDto>(client, "api/events");
 
                 var vm = events
                     .OrderBy(e => e.EventDateTime)
@@ -67,14 +69,16 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 var eventClient = CreateEventServiceClient();
 
-                var eventDto = await GetNullableAsync<EventDto>(eventClient, $"api/events/{id.Value}");
+                //var eventDto = await GetNullableAsync<EventDto>(eventClient, $"api/events/{id.Value}");
+                var eventDto = await ApiHttpHelper.GetNullableAsync<EventDto>(eventClient, $"api/events/{id.Value}");
 
                 if (eventDto == null)
                 {
                     return NotFound();
                 }
 
-                var eventSpeakers = await GetListAsync<EventSpeakerDto>(eventClient, "api/eventspeakers");
+                //var eventSpeakers = await GetListAsync<EventSpeakerDto>(eventClient, "api/eventspeakers");
+                var eventSpeakers = await ApiHttpHelper.GetListAsync<EventSpeakerDto>(eventClient, "api/eventspeakers");
 
                 var vm = new EventDetailsViewModel
                 {
@@ -149,7 +153,7 @@ namespace SmartEventPlatformWeb.Controllers
         {
             if (!ModelState.IsValid)
             {
-                await PopulateEventFormListsAsync(vm);
+                await PopulateEventCreateFormListsAsync(vm);
                 return View(vm);
             }
 
@@ -167,7 +171,15 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateEventServiceClient();
-                await PostAndReadIdAsync(client, "api/events", dto);
+                //await PostAndReadIdAsync(client, "api/events", dto);
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/events", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The event could not be created.");
+                    await PopulateEventCreateFormListsAsync(vm);
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -184,7 +196,7 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the event.");
             }
 
-            await PopulateEventFormListsAsync(vm);
+            await PopulateEventCreateFormListsAsync(vm);
             return View(vm);
         }
 
@@ -198,7 +210,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateEventServiceClient();
-                var eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
+                //var eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
+                var eventDto = await ApiHttpHelper.GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
 
                 if (eventDto == null)
                 {
@@ -248,7 +261,7 @@ namespace SmartEventPlatformWeb.Controllers
 
             if (!ModelState.IsValid)
             {
-                await PopulateEventFormListsAsync(vm);
+                await PopulateEventEditFormListsAsync(vm);
                 return View(vm);
             }
 
@@ -266,7 +279,15 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateEventServiceClient();
-                await PutAsync(client, $"api/events/{id}", dto);
+                //await PutAsync(client, $"api/events/{id}", dto);
+                var result = await ApiHttpHelper.PutAsync(client, $"api/events/{id}", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The event could not be updated.");
+                    await PopulateEventEditFormListsAsync(vm);
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -283,7 +304,7 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the event.");
             }
 
-            await PopulateEventFormListsAsync(vm);
+            await PopulateEventEditFormListsAsync(vm);
             return View(vm);
         }
 
@@ -297,7 +318,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateEventServiceClient();
-                var eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
+                //var eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
+                var eventDto = await ApiHttpHelper.GetNullableAsync<EventDto>(client, $"api/events/{id.Value}");
 
                 if (eventDto == null)
                 {
@@ -334,14 +356,24 @@ namespace SmartEventPlatformWeb.Controllers
             {
                 var client = CreateEventServiceClient();
 
-                eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id}");
+                //eventDto = await GetNullableAsync<EventDto>(client, $"api/events/{id}");
+                eventDto = await ApiHttpHelper.GetNullableAsync<EventDto>(client, $"api/events/{id}");
 
                 if (eventDto == null)
                 {
                     return NotFound();
                 }
 
-                await DeleteAsync(client, $"api/events/{id}");
+                //await DeleteAsync(client, $"api/events/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"api/events/{id}");
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The event could not be deleted.");
+
+                    var deleteVm = MapToDeleteViewModel(eventDto);
+                    return View("Delete", deleteVm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -372,7 +404,8 @@ namespace SmartEventPlatformWeb.Controllers
             try
             {
                 var client = CreateRegistrationServiceClient();
-                var availableEvents = await GetListAsync<AvailableEventDto>(client, "api/availableevents");
+                //var availableEvents = await GetListAsync<AvailableEventDto>(client, "api/availableevents");
+                var availableEvents = await ApiHttpHelper.GetListAsync<AvailableEventDto>(client, "api/availableevents");
 
                 var vm = availableEvents
                     .OrderBy(e => e.EventDateTime)
@@ -411,8 +444,9 @@ namespace SmartEventPlatformWeb.Controllers
 
         private async Task<List<SelectListItem>> GetLocationsSelectListAsync()
         {
-            var client = CreateEventServiceClient();
-            var locations = await GetListAsync<LocationDto>(client, "api/locations");
+            var client = CreateDirectoryServiceClient();
+            //var locations = await GetListAsync<LocationDto>(client, "api/locations");
+            var locations = await ApiHttpHelper.GetListAsync<LocationDto>(client, "api/locations");
 
             return locations
                 .OrderBy(l => l.LocationName)
@@ -427,7 +461,8 @@ namespace SmartEventPlatformWeb.Controllers
         private async Task<List<SelectListItem>> GetTypesSelectListAsync()
         {
             var client = CreateEventServiceClient();
-            var eventTypes = await GetListAsync<EventTypeDto>(client, "api/eventtypes");
+            //var eventTypes = await GetListAsync<EventTypeDto>(client, "api/eventtypes");
+            var eventTypes = await ApiHttpHelper.GetListAsync<EventTypeDto>(client, "api/eventtypes");
 
             return eventTypes
                 .OrderBy(et => et.Name)
@@ -439,7 +474,7 @@ namespace SmartEventPlatformWeb.Controllers
                 .ToList();
         }
 
-        private async Task PopulateEventFormListsAsync(EventCreateViewModel vm)
+        private async Task PopulateEventCreateFormListsAsync(EventCreateViewModel vm)
         {
             try
             {
@@ -453,7 +488,7 @@ namespace SmartEventPlatformWeb.Controllers
             }
         }
 
-        private async Task PopulateEventFormListsAsync(EventEditViewModel vm)
+        private async Task PopulateEventEditFormListsAsync(EventEditViewModel vm)
         {
             try
             {
@@ -483,82 +518,15 @@ namespace SmartEventPlatformWeb.Controllers
             return _httpClientFactory.CreateClient("EventService");
         }
 
+        private HttpClient CreateDirectoryServiceClient()
+        {
+            return _httpClientFactory.CreateClient("DirectoryService");
+        }
+
         private HttpClient CreateRegistrationServiceClient()
         {
             return _httpClientFactory.CreateClient("RegistrationService");
         }
 
-        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
-        {
-            var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
-        }
-
-        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
-        {
-            var response = await client.GetAsync(url);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                return default;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<T>();
-        }
-
-        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PostAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<long>();
-        }
-
-        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PutAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task DeleteAsync(HttpClient client, string url)
-        {
-            var response = await client.DeleteAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
-        {
-            var message = await response.Content.ReadAsStringAsync();
-
-            if (string.IsNullOrWhiteSpace(message))
-            {
-                message = $"API request failed with status code {(int)response.StatusCode}.";
-            }
-
-            return new HttpRequestException(message, null, response.StatusCode);
-        }
     }
 }

@@ -10,7 +10,9 @@
         public decimal RegistrationFee { get; set; }
 
         public long LocationId { get; set; }
-        public Location? Location { get; set; }
+        public string LocationNameSnapshot { get; set; } = string.Empty;
+        public string LocationAddressSnapshot { get; set; } = string.Empty;
+        public int LocationCapacitySnapshot { get; set; }
 
         public long EventTypeId { get; set; }
         public EventType? EventType { get; set; }

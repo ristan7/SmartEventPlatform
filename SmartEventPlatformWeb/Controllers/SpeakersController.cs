@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmartEventPlatform.Contracts.EventSpeakers;
 using SmartEventPlatform.Contracts.Speakers;
+using SmartEventPlatformWeb.Infrastructure;
 using SmartEventPlatformWeb.ViewModels.Speakers;
 using System.Net;
 using System.Net.Http.Json;
@@ -20,8 +21,9 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateEventServiceClient();
-                var speakers = await GetListAsync<SpeakerDto>(client, "api/speakers");
+                var client = CreateDirectoryServiceClient();
+                //var speakers = await GetListAsync<SpeakerDto>(client, "api/speakers");
+                var speakers = await ApiHttpHelper.GetListAsync<SpeakerDto>(client, "api/speakers");
 
                 var vm = speakers
                     .OrderBy(s => s.LastName)
@@ -63,16 +65,19 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var directoryClient = CreateDirectoryServiceClient();
+                var eventClient = CreateEventServiceClient();
 
-                var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                //var speaker = await GetNullableAsync<SpeakerDto>(directoryClient, $"api/speakers/{id.Value}");
+                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(directoryClient, $"api/speakers/{id.Value}");
 
                 if (speaker == null)
                 {
                     return NotFound();
                 }
 
-                var eventSpeakers = await GetListAsync<EventSpeakerDto>(client, "api/eventspeakers");
+                //var eventSpeakers = await GetListAsync<EventSpeakerDto>(eventClient, $"api/eventspeakers/by-speaker/{id.Value}");
+                var eventSpeakers = await ApiHttpHelper.GetListAsync<EventSpeakerDto>(eventClient, $"api/eventspeakers/by-speaker/{id.Value}");
 
                 var vm = new SpeakerDetailsViewModel
                 {
@@ -137,8 +142,15 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                await PostAndReadIdAsync(client, "api/speakers", dto);
+                var client = CreateDirectoryServiceClient();
+                //await PostAndReadIdAsync(client, "api/speakers", dto);
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/speakers", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The speaker could not be created.");
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -167,8 +179,9 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                var client = CreateDirectoryServiceClient();
+                //var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
 
                 if (speaker == null)
                 {
@@ -227,8 +240,15 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                await PutAsync(client, $"api/speakers/{id}", dto);
+                var client = CreateDirectoryServiceClient();
+                //await PutAsync(client, $"api/speakers/{id}", dto);
+                var result = await ApiHttpHelper.PutAsync(client, $"api/speakers/{id}", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The speaker could not be updated.");
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -257,8 +277,9 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                var client = CreateDirectoryServiceClient();
+                //var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
 
                 if (speaker == null)
                 {
@@ -293,16 +314,25 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
 
-                speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id}");
+                //speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id}");
+                speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id}");
 
                 if (speaker == null)
                 {
                     return NotFound();
                 }
 
-                await DeleteAsync(client, $"api/speakers/{id}");
+                //await DeleteAsync(client, $"api/speakers/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"api/speakers/{id}");
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The speaker could not be deleted.");
+                    var deleteVm = MapToDeleteViewModel(speaker);
+                    return View("Delete", deleteVm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -345,77 +375,9 @@ namespace SmartEventPlatformWeb.Controllers
             return _httpClientFactory.CreateClient("EventService");
         }
 
-        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
+        private HttpClient CreateDirectoryServiceClient()
         {
-            var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
-        }
-
-        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
-        {
-            var response = await client.GetAsync(url);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                return default;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<T>();
-        }
-
-        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PostAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<long>();
-        }
-
-        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PutAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task DeleteAsync(HttpClient client, string url)
-        {
-            var response = await client.DeleteAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
-        {
-            var message = await response.Content.ReadAsStringAsync();
-
-            if (string.IsNullOrWhiteSpace(message))
-            {
-                message = $"API request failed with status code {(int)response.StatusCode}.";
-            }
-
-            return new HttpRequestException(message, null, response.StatusCode);
+            return _httpClientFactory.CreateClient("DirectoryService");
         }
     }
 }

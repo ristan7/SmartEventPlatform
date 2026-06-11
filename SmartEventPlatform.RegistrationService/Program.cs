@@ -1,7 +1,9 @@
 
 using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;
-using SmartEventPlatform.RegistrationService.Patterns;
+using SmartEventPlatform.RegistrationService.ErrorHandling;
+using SmartEventPlatform.RegistrationService.Resilience;
 
 namespace SmartEventPlatform.RegistrationService
 {
@@ -16,14 +18,15 @@ namespace SmartEventPlatform.RegistrationService
             builder.Services.AddDbContext<RegistrationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            builder.Services.AddSingleton<CircuitBreaker>(sp =>
-                new CircuitBreaker(3, TimeSpan.FromSeconds(10))
-            );
+            builder.Services.AddProblemDetails();
+            builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-            builder.Services.AddHttpClient("EventService", client =>
+            builder.Services.AddSingleton<EventServiceCircuitBreaker>();
+
+            builder.Services.AddHttpClient<IEventServiceClient, EventServiceClient>(client =>
             {
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
                 client.Timeout = TimeSpan.FromSeconds(3);
-                client.BaseAddress = new Uri(builder.Configuration["EventServiceEndpoint"]!);
             });
 
             builder.Services.AddControllers();
@@ -40,6 +43,7 @@ namespace SmartEventPlatform.RegistrationService
                 app.UseSwaggerUI();
             }
 
+            app.UseExceptionHandler();
             app.UseHttpsRedirection();
 
             app.UseAuthorization();

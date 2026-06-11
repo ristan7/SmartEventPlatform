@@ -1,4 +1,6 @@
 
+using SmartEventPlatformWeb.Filters;
+
 namespace SmartEventPlatformWeb
 {
     public class Program
@@ -21,8 +23,17 @@ namespace SmartEventPlatformWeb
                 client.Timeout = TimeSpan.FromSeconds(15);
             });
 
+            builder.Services.AddHttpClient("DirectoryService", client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:DirectoryService"]!);
+                client.Timeout = TimeSpan.FromSeconds(15);
+            });
 
-            builder.Services.AddControllersWithViews();
+
+            builder.Services.AddControllersWithViews(options =>
+            {
+                options.Filters.Add<MvcExceptionLoggingFilter>();
+            });
 
 
             var app = builder.Build();

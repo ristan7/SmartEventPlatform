@@ -2,20 +2,23 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.Speakers;
-using SmartEventPlatform.EventService.Data;
-using SmartEventPlatform.EventService.Models;
+using SmartEventPlatform.DirectoryService.Clients;
+using SmartEventPlatform.DirectoryService.Data;
+using SmartEventPlatform.DirectoryService.Models;
 
-namespace SmartEventPlatform.EventService.Controllers
+namespace SmartEventPlatform.DirectoryService.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     public class SpeakersController : ControllerBase
     {
-        private readonly EventDbContext _context;
+        private readonly DirectoryDbContext _context;
+        private readonly IEventUsageClient _eventUsageClient;
 
-        public SpeakersController(EventDbContext context)
+        public SpeakersController(DirectoryDbContext context, IEventUsageClient eventUsageClient)
         {
             _context = context;
+            _eventUsageClient = eventUsageClient;
         }
 
         [HttpGet]
@@ -41,8 +44,6 @@ namespace SmartEventPlatform.EventService.Controllers
         public async Task<ActionResult<SpeakerDto>> GetById(long id)
         {
             var speaker = await _context.Speakers
-                .Include(s => s.EventSpeakers)
-                    .ThenInclude(es => es.Event)
                 .Where(s => s.SpeakerId == id)
                 .Select(s => new SpeakerDto
                 {
@@ -51,18 +52,6 @@ namespace SmartEventPlatform.EventService.Controllers
                     LastName = s.LastName,
                     Title = s.Title,
                     ExpertiseAreas = s.ExpertiseAreas,
-
-                    EventSpeakersParticipations = s.EventSpeakers
-                        .OrderBy(es => es.Time)
-                        .Select(es => new SpeakerEventItemDto
-                        {
-                            EventSpeakerId = es.EventSpeakerId,
-                            EventId = es.EventId,
-                            EventName = es.Event != null ? es.Event.EventName : string.Empty,
-                            Topic = es.Topic,
-                            Time = es.Time
-                        })
-                        .ToList()
                 })
                 .FirstOrDefaultAsync();
 
@@ -171,8 +160,7 @@ namespace SmartEventPlatform.EventService.Controllers
                 return NotFound();
             }
 
-            var hasEventSpeakers = await _context.EventSpeakers
-                .AnyAsync(es => es.SpeakerId == id);
+            var hasEventSpeakers = await _eventUsageClient.ExistsForSpeakerAsync(id);
 
             if (hasEventSpeakers)
             {

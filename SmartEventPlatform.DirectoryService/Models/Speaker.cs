@@ -1,4 +1,4 @@
-﻿namespace SmartEventPlatform.EventService.Models
+﻿namespace SmartEventPlatform.DirectoryService.Models
 {
     public class Speaker
     {
@@ -7,7 +7,5 @@
         public string LastName { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
         public string ExpertiseAreas { get; set; } = string.Empty;
-
-        public ICollection<EventSpeaker> EventSpeakers { get; set; } = new List<EventSpeaker>();
     }
 }
