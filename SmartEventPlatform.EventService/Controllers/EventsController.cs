@@ -102,6 +102,24 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(eventDto);
         }
 
+        [HttpGet("exists-for-location/{locationId:long}")]
+        public async Task<ActionResult<bool>> ExistsForLocation(long locationId)
+        {
+            var exists = await _context.Events
+                .AnyAsync(e => e.LocationId == locationId);
+
+            return Ok(exists);
+        }
+
+        [HttpGet("exists-for-speaker/{speakerId:long}")]
+        public async Task<ActionResult<bool>> ExistsForSpeaker(long speakerId)
+        {
+            var exists = await _context.EventSpeakers
+                .AnyAsync(es => es.SpeakerId == speakerId);
+
+            return Ok(exists);
+        }
+
         [HttpGet("{id:long}/registration-info")]
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
@@ -113,7 +131,7 @@ namespace SmartEventPlatform.EventService.Controllers
             //    return StatusCode(500, "Simulated temporary EventService error.");
             //}
 
-            //await Task.Delay(10000);
+            await Task.Delay(10000);
 
             //return StatusCode(500, "Simulated EventService failure.");
 
