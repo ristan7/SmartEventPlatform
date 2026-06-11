@@ -131,7 +131,7 @@ namespace SmartEventPlatform.EventService.Controllers
             //    return StatusCode(500, "Simulated temporary EventService error.");
             //}
 
-            await Task.Delay(10000);
+            //await Task.Delay(10000);
 
             //return StatusCode(500, "Simulated EventService failure.");
 
