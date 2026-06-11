@@ -2,20 +2,23 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.Locations;
-using SmartEventPlatform.EventService.Data;
-using SmartEventPlatform.EventService.Models;
+using SmartEventPlatform.DirectoryService.Clients;
+using SmartEventPlatform.DirectoryService.Data;
+using SmartEventPlatform.DirectoryService.Models;
 
-namespace SmartEventPlatform.EventService.Controllers
+namespace SmartEventPlatform.DirectoryService.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     public class LocationsController : ControllerBase
     {
-        private readonly EventDbContext _context;
+        private readonly DirectoryDbContext _context;
+        private readonly IEventUsageClient _eventUsageClient;
 
-        public LocationsController(EventDbContext context)
+        public LocationsController(DirectoryDbContext context, IEventUsageClient eventUsageClient)
         {
             _context = context;
+            _eventUsageClient = eventUsageClient;
         }
 
         [HttpGet]
@@ -151,8 +154,7 @@ namespace SmartEventPlatform.EventService.Controllers
                 return NotFound();
             }
 
-            var hasEvents = await _context.Events
-                .AnyAsync(e => e.LocationId == id);
+            var hasEvents = await _eventUsageClient.ExistsForLocationAsync(id);
 
             if (hasEvents)
             {

@@ -22,7 +22,7 @@ namespace SmartEventPlatform.EventService.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.Event", b =>
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.Event", b =>
                 {
                     b.Property<long>("EventId")
                         .ValueGeneratedOnAdd()
@@ -49,8 +49,21 @@ namespace SmartEventPlatform.EventService.Migrations
                     b.Property<long>("EventTypeId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("LocationAddressSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<int>("LocationCapacitySnapshot")
+                        .HasColumnType("int");
+
                     b.Property<long>("LocationId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("LocationNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<decimal>("RegistrationFee")
                         .HasColumnType("decimal(18,2)");
@@ -59,12 +72,10 @@ namespace SmartEventPlatform.EventService.Migrations
 
                     b.HasIndex("EventTypeId");
 
-                    b.HasIndex("LocationId");
-
                     b.ToTable("Events", (string)null);
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.EventSpeaker", b =>
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.EventSpeaker", b =>
                 {
                     b.Property<long>("EventSpeakerId")
                         .ValueGeneratedOnAdd()
@@ -74,6 +85,11 @@ namespace SmartEventPlatform.EventService.Migrations
 
                     b.Property<long>("EventId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("SpeakerFullNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
 
                     b.Property<long>("SpeakerId")
                         .HasColumnType("bigint");
@@ -90,12 +106,10 @@ namespace SmartEventPlatform.EventService.Migrations
 
                     b.HasIndex("EventId");
 
-                    b.HasIndex("SpeakerId");
-
                     b.ToTable("EventSpeakers", (string)null);
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.EventType", b =>
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.EventType", b =>
                 {
                     b.Property<long>("EventTypeId")
                         .ValueGeneratedOnAdd()
@@ -113,121 +127,36 @@ namespace SmartEventPlatform.EventService.Migrations
                     b.ToTable("EventTypes", (string)null);
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.Location", b =>
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.Event", b =>
                 {
-                    b.Property<long>("LocationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("LocationId"));
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(250)
-                        .HasColumnType("nvarchar(250)");
-
-                    b.Property<int>("Capacity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("LocationName")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.HasKey("LocationId");
-
-                    b.ToTable("Locations", (string)null);
-                });
-
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.Speaker", b =>
-                {
-                    b.Property<long>("SpeakerId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("SpeakerId"));
-
-                    b.Property<string>("ExpertiseAreas")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.HasKey("SpeakerId");
-
-                    b.ToTable("Speakers", (string)null);
-                });
-
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.Event", b =>
-                {
-                    b.HasOne("SmartEventPlatformWeb.EventService.Models.EventType", "EventType")
+                    b.HasOne("SmartEventPlatform.EventService.Models.EventType", "EventType")
                         .WithMany("Events")
                         .HasForeignKey("EventTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SmartEventPlatformWeb.EventService.Models.Location", "Location")
-                        .WithMany("Events")
-                        .HasForeignKey("LocationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("EventType");
-
-                    b.Navigation("Location");
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.EventSpeaker", b =>
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.EventSpeaker", b =>
                 {
-                    b.HasOne("SmartEventPlatformWeb.EventService.Models.Event", "Event")
+                    b.HasOne("SmartEventPlatform.EventService.Models.Event", "Event")
                         .WithMany("EventSpeakers")
                         .HasForeignKey("EventId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SmartEventPlatformWeb.EventService.Models.Speaker", "Speaker")
-                        .WithMany("EventSpeakers")
-                        .HasForeignKey("SpeakerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Event");
-
-                    b.Navigation("Speaker");
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.Event", b =>
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.Event", b =>
                 {
                     b.Navigation("EventSpeakers");
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.EventType", b =>
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.EventType", b =>
                 {
                     b.Navigation("Events");
-                });
-
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.Location", b =>
-                {
-                    b.Navigation("Events");
-                });
-
-            modelBuilder.Entity("SmartEventPlatformWeb.EventService.Models.Speaker", b =>
-                {
-                    b.Navigation("EventSpeakers");
                 });
 #pragma warning restore 612, 618
         }

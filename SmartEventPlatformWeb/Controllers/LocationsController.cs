@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using SmartEventPlatform.Contracts.Locations;
+using SmartEventPlatformWeb.Infrastructure;
 using SmartEventPlatformWeb.ViewModels.Locations;
 using System.Net;
 using System.Net.Http.Json;
@@ -19,8 +20,9 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateEventServiceClient();
-                var locations = await GetListAsync<LocationDto>(client, "api/locations");
+                var client = CreateDirectoryServiceClient();
+                //var locations = await GetListAsync<LocationDto>(client, "api/locations");
+                var locations = await ApiHttpHelper.GetListAsync<LocationDto>(client, "api/locations");
 
                 var vm = locations
                     .OrderBy(l => l.LocationName)
@@ -60,8 +62,9 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var client = CreateDirectoryServiceClient();
+                //var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
 
                 if (location == null)
                 {
@@ -117,8 +120,15 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                await PostAndReadIdAsync(client, "api/locations", dto);
+                var client = CreateDirectoryServiceClient();
+                //await PostAndReadIdAsync(client, "api/locations", dto);
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/locations", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The location could not be created.");
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -147,8 +157,9 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var client = CreateDirectoryServiceClient();
+                //var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
 
                 if (location == null)
                 {
@@ -205,8 +216,15 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                await PutAsync(client, $"api/locations/{id}", dto);
+                var client = CreateDirectoryServiceClient();
+                //await PutAsync(client, $"api/locations/{id}", dto);
+                var result = await ApiHttpHelper.PutAsync(client, $"api/locations/{id}", dto);
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The location could not be updated.");
+                    return View(vm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -235,8 +253,9 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
-                var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var client = CreateDirectoryServiceClient();
+                //var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
 
                 if (location == null)
                 {
@@ -271,16 +290,25 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateDirectoryServiceClient();
 
-                location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
+                //location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
+                location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
 
                 if (location == null)
                 {
                     return NotFound();
                 }
 
-                await DeleteAsync(client, $"api/locations/{id}");
+                //await DeleteAsync(client, $"api/locations/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"api/locations/{id}");
+
+                if (!result.Success)
+                {
+                    ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The location could not be deleted.");
+                    var deleteVm = MapToDeleteViewModel(location);
+                    return View("Delete", deleteVm);
+                }
 
                 return RedirectToAction(nameof(Index));
             }
@@ -306,82 +334,9 @@ namespace SmartEventPlatformWeb.Controllers
             return View("Delete", vm);
         }
 
-        private HttpClient CreateEventServiceClient()
+        private HttpClient CreateDirectoryServiceClient()
         {
-            return _httpClientFactory.CreateClient("EventService");
-        }
-
-        private static async Task<List<T>> GetListAsync<T>(HttpClient client, string url)
-        {
-            var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<List<T>>() ?? new List<T>();
-        }
-
-        private static async Task<T?> GetNullableAsync<T>(HttpClient client, string url)
-        {
-            var response = await client.GetAsync(url);
-
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                return default;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<T>();
-        }
-
-        private static async Task<long> PostAndReadIdAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PostAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-
-            return await response.Content.ReadFromJsonAsync<long>();
-        }
-
-        private static async Task PutAsync<T>(HttpClient client, string url, T dto)
-        {
-            var response = await client.PutAsJsonAsync(url, dto);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task DeleteAsync(HttpClient client, string url)
-        {
-            var response = await client.DeleteAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw await CreateApiExceptionAsync(response);
-            }
-        }
-
-        private static async Task<Exception> CreateApiExceptionAsync(HttpResponseMessage response)
-        {
-            var message = await response.Content.ReadAsStringAsync();
-
-            if (string.IsNullOrWhiteSpace(message))
-            {
-                message = $"API request failed with status code {(int)response.StatusCode}.";
-            }
-
-            return new HttpRequestException(message, null, response.StatusCode);
+            return _httpClientFactory.CreateClient("DirectoryService");
         }
 
         private static LocationDeleteViewModel MapToDeleteViewModel(LocationDto location)
