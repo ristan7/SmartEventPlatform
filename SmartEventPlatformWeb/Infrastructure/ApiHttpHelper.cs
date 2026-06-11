@@ -45,7 +45,7 @@ public static class ApiHttpHelper
             return ApiOperationResult<long>.Ok(response.StatusCode, id);
         }
 
-        if (IsBusinessError(response.StatusCode))
+        if (IsExpectedApiError(response.StatusCode))
         {
             var message = await ReadApiErrorMessageAsync(response);
             return ApiOperationResult<long>.Fail(response.StatusCode, message);
@@ -63,7 +63,7 @@ public static class ApiHttpHelper
             return ApiOperationResult.Ok(response.StatusCode);
         }
 
-        if (IsBusinessError(response.StatusCode))
+        if (IsExpectedApiError(response.StatusCode))
         {
             var message = await ReadApiErrorMessageAsync(response);
             return ApiOperationResult.Fail(response.StatusCode, message);
@@ -81,7 +81,7 @@ public static class ApiHttpHelper
             return ApiOperationResult.Ok(response.StatusCode);
         }
 
-        if (IsBusinessError(response.StatusCode))
+        if (IsExpectedApiError(response.StatusCode))
         {
             var message = await ReadApiErrorMessageAsync(response);
             return ApiOperationResult.Fail(response.StatusCode, message);
@@ -99,7 +99,7 @@ public static class ApiHttpHelper
             return ApiOperationResult.Ok(response.StatusCode);
         }
 
-        if (IsBusinessError(response.StatusCode))
+        if (IsExpectedApiError(response.StatusCode))
         {
             var message = await ReadApiErrorMessageAsync(response);
             return ApiOperationResult.Fail(response.StatusCode, message);
@@ -108,16 +108,19 @@ public static class ApiHttpHelper
         throw await CreateApiExceptionAsync(response);
     }
 
-    private static bool IsBusinessError(HttpStatusCode statusCode)
+    private static bool IsExpectedApiError(HttpStatusCode statusCode)
     {
         return statusCode == HttpStatusCode.BadRequest ||
+               statusCode == HttpStatusCode.NotFound ||
                statusCode == HttpStatusCode.Conflict ||
-               statusCode == HttpStatusCode.UnprocessableEntity;
+               statusCode == HttpStatusCode.UnprocessableEntity ||
+               statusCode == HttpStatusCode.ServiceUnavailable ||
+               statusCode == HttpStatusCode.GatewayTimeout;
     }
 
     private static async Task<string> ReadApiErrorMessageAsync(HttpResponseMessage response)
     {
-        var content = await response.Content.ReadAsStringAsync();
+        var content = await response.Content.ReadAsStringAsync();//cita ceo sadrzaj odgovora kao string
 
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -128,7 +131,7 @@ public static class ApiHttpHelper
         {
             using var document = JsonDocument.Parse(content);
 
-            if (document.RootElement.ValueKind == JsonValueKind.String)
+            if (document.RootElement.ValueKind == JsonValueKind.String)//ako je obican string, npr. "Event not found"
             {
                 var text = document.RootElement.GetString();
 
@@ -183,7 +186,7 @@ public static class ApiHttpHelper
         }
         catch (JsonException)
         {
-            return content.Trim('"');
+            return content.Trim('"');//skida navodnike sa pocetka i kraja ako je content obican string koji nije validan JSON, npr. "\"Event not found\""
         }
 
         return content.Trim('"');

@@ -11,10 +11,7 @@ public sealed class EventUsageClient : IEventUsageClient
     private readonly AsyncRetryPolicy _retryPolicy;
     private readonly ILogger<EventUsageClient> _logger;
 
-    public EventUsageClient(
-        HttpClient httpClient,
-        EventServiceCircuitBreaker circuitBreaker,
-        ILogger<EventUsageClient> logger)
+    public EventUsageClient(HttpClient httpClient, EventServiceCircuitBreaker circuitBreaker, ILogger<EventUsageClient> logger)
     {
         _httpClient = httpClient;
         _circuitBreaker = circuitBreaker;

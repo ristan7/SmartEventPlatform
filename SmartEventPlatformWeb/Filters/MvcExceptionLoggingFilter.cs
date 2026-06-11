@@ -9,9 +9,7 @@ public sealed class MvcExceptionLoggingFilter : IExceptionFilter
     private readonly ILogger<MvcExceptionLoggingFilter> _logger;
     private readonly ITempDataDictionaryFactory _tempDataDictionaryFactory;
 
-    public MvcExceptionLoggingFilter(
-        ILogger<MvcExceptionLoggingFilter> logger,
-        ITempDataDictionaryFactory tempDataDictionaryFactory)
+    public MvcExceptionLoggingFilter(ILogger<MvcExceptionLoggingFilter> logger, ITempDataDictionaryFactory tempDataDictionaryFactory)
     {
         _logger = logger;
         _tempDataDictionaryFactory = tempDataDictionaryFactory;

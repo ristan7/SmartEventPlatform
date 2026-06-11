@@ -1,4 +1,3 @@
-
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.DirectoryService.Clients;
 using SmartEventPlatform.DirectoryService.Data;

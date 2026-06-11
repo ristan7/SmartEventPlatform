@@ -1,5 +1,4 @@
-﻿using System.Net.Http.Json;
-using Polly.Retry;
+﻿using Polly.Retry;
 using SmartEventPlatform.EventService.Resilience;
 
 namespace SmartEventPlatform.EventService.Clients;

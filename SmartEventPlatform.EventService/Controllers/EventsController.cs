@@ -5,6 +5,7 @@ using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.Models;
+using System.Diagnostics.Metrics;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
@@ -15,6 +16,8 @@ namespace SmartEventPlatform.EventService.Controllers
         private readonly EventDbContext _context;
         private readonly IDirectoryServiceClient _directoryServiceClient;
         private readonly IRegistrationServiceClient _registrationServiceClient;
+
+        //private static int _counter = 0;
 
         public EventsController(
             EventDbContext context,
@@ -103,9 +106,9 @@ namespace SmartEventPlatform.EventService.Controllers
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
 
-            //_counter++;
+            //var attempt = Interlocked.Increment(ref _counter);
 
-            //if (_counter % 3 != 0)
+            //if (attempt % 3 != 0)
             //{
             //    return StatusCode(500, "Simulated temporary EventService error.");
             //}
