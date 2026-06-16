@@ -13,6 +13,10 @@ namespace SmartEventPlatform.DirectoryService.Data
         public DbSet<Location> Locations { get; set; }
         public DbSet<Speaker> Speakers { get; set; }
 
+        public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
+        public DbSet<LocationUsageTracker> LocationUsageTrackers { get; set; }
+        public DbSet<SpeakerUsageTracker> SpeakerUsageTrackers { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -34,6 +38,27 @@ namespace SmartEventPlatform.DirectoryService.Data
                 entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.Title).HasMaxLength(150);
                 entity.Property(e => e.ExpertiseAreas).HasMaxLength(500);
+            });
+
+            modelBuilder.Entity<ProcessedMessage>(entity =>
+            {
+                entity.ToTable("ProcessedMessages");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.MessageId).IsUnique();
+            });
+
+            modelBuilder.Entity<LocationUsageTracker>(entity =>
+            {
+                entity.ToTable("LocationUsageTrackers");
+                entity.HasKey(e => e.EventId);
+                entity.HasIndex(e => e.LocationId);
+            });
+
+            modelBuilder.Entity<SpeakerUsageTracker>(entity =>
+            {
+                entity.ToTable("SpeakerUsageTrackers");
+                entity.HasKey(e => e.EventSpeakerId);
+                entity.HasIndex(e => e.SpeakerId);
             });
         }
     }
