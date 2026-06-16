@@ -1,10 +1,13 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.Contracts.Events.Integration;
 using SmartEventPlatform.Contracts.EventSpeakers;
 using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
+using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Models;
+using System.Text.Json;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
@@ -14,11 +17,13 @@ namespace SmartEventPlatform.EventService.Controllers
     {
         private readonly EventDbContext _context;
         private readonly IDirectoryServiceClient _directoryServiceClient;
+        private readonly ILogger<EventSpeakersController> _logger;
 
-        public EventSpeakersController(EventDbContext context, IDirectoryServiceClient directoryServiceClient)
+        public EventSpeakersController(EventDbContext context, IDirectoryServiceClient directoryServiceClient, ILogger<EventSpeakersController> logger)
         {
             _context = context;
             _directoryServiceClient = directoryServiceClient;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -121,19 +126,45 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest("Speaker time must be within the selected event duration.");
             }
 
-            var eventSpeaker = new EventSpeaker
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                EventId = dto.EventId,
-                SpeakerId = dto.SpeakerId,
-                SpeakerFullNameSnapshot = speaker.FullName,
-                Topic = dto.Topic,
-                Time = dto.Time
-            };
+                var eventSpeaker = new EventSpeaker
+                {
+                    EventId = dto.EventId,
+                    SpeakerId = dto.SpeakerId,
+                    SpeakerFullNameSnapshot = speaker.FullName,
+                    Topic = dto.Topic,
+                    Time = dto.Time
+                };
 
-            _context.EventSpeakers.Add(eventSpeaker);
-            await _context.SaveChangesAsync();
+                _context.EventSpeakers.Add(eventSpeaker);
+                await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = eventSpeaker.EventSpeakerId }, eventSpeaker.EventSpeakerId);
+                // Outbox — obavijesti DirectoryService da govornik sada ima angažman
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(EventSpeakerAddedEvent),
+                    Payload = JsonSerializer.Serialize(new EventSpeakerAddedEvent
+                    {
+                        EventSpeakerId = eventSpeaker.EventSpeakerId,
+                        SpeakerId = eventSpeaker.SpeakerId
+                    }),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return CreatedAtAction(nameof(GetById), new { id = eventSpeaker.EventSpeakerId }, eventSpeaker.EventSpeakerId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greska pri kreiranju event speaker-a.");
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         [HttpPut("{id:long}")]
@@ -173,24 +204,62 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest("Speaker time must be within the selected event duration.");
             }
 
+            var oldSpeakerId = eventSpeaker.SpeakerId;
+
             eventSpeaker.EventId = dto.EventId;
             eventSpeaker.SpeakerId = dto.SpeakerId;
             eventSpeaker.SpeakerFullNameSnapshot = speaker.FullName;
             eventSpeaker.Topic = dto.Topic;
             eventSpeaker.Time = dto.Time;
 
-            try
+            // Ako se govornik promijenio, šaljemo remove za starog i add za novog
+            if (oldSpeakerId != dto.SpeakerId)
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await EventSpeakerExistsAsync(id))
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    return NotFound();
-                }
+                    await _context.SaveChangesAsync();
 
-                throw;
+                    _context.OutboxMessages.Add(new OutboxMessage
+                    {
+                        EventType = nameof(EventSpeakerRemovedEvent),
+                        Payload = JsonSerializer.Serialize(new EventSpeakerRemovedEvent
+                        {
+                            EventSpeakerId = id,
+                            SpeakerId = oldSpeakerId
+                        }),
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                    _context.OutboxMessages.Add(new OutboxMessage
+                    {
+                        EventType = nameof(EventSpeakerAddedEvent),
+                        Payload = JsonSerializer.Serialize(new EventSpeakerAddedEvent
+                        {
+                            EventSpeakerId = id,
+                            SpeakerId = dto.SpeakerId
+                        }),
+                        CreatedAt = DateTime.UtcNow.AddMilliseconds(1)
+                    });
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Greska pri azuriranju event speaker-a.");
+                    await transaction.RollbackAsync();
+                    throw;
+                }
+            }
+            else
+            {
+                try { await _context.SaveChangesAsync(); }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!await EventSpeakerExistsAsync(id)) return NotFound();
+                    throw;
+                }
             }
 
             return NoContent();
@@ -232,10 +301,38 @@ namespace SmartEventPlatform.EventService.Controllers
                 return NotFound();
             }
 
-            _context.EventSpeakers.Remove(eventSpeaker);
-            await _context.SaveChangesAsync();
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            return NoContent();
+            try
+            {
+                var speakerId = eventSpeaker.SpeakerId;
+
+                _context.EventSpeakers.Remove(eventSpeaker);
+                await _context.SaveChangesAsync();
+
+                // Outbox — govornik više nema taj angažman
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(EventSpeakerRemovedEvent),
+                    Payload = JsonSerializer.Serialize(new EventSpeakerRemovedEvent
+                    {
+                        EventSpeakerId = id,
+                        SpeakerId = speakerId
+                    }),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greska pri brisanju event speaker-a.");
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         [HttpGet("exists-for-speaker/{speakerId:long}")]
