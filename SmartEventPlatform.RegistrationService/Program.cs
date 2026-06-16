@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.ErrorHandling;
+using SmartEventPlatform.RegistrationService.Messaging;
 using SmartEventPlatform.RegistrationService.Resilience;
 
 namespace SmartEventPlatform.RegistrationService
@@ -28,6 +29,11 @@ namespace SmartEventPlatform.RegistrationService
                 client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
                 client.Timeout = TimeSpan.FromSeconds(3);
             });
+
+            builder.Services.Configure<RabbitMqOptions>(
+                builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
+            builder.Services.AddHostedService<OutboxMessagePublisher>();
 
             builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

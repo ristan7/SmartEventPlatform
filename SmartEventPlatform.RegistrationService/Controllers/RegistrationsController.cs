@@ -2,10 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using Polly;
 using SmartEventPlatform.Contracts.Events;
+using SmartEventPlatform.Contracts.Events.Integration;
 using SmartEventPlatform.Contracts.Registrations;
 using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;
+using SmartEventPlatform.RegistrationService.Messaging;
 using SmartEventPlatform.RegistrationService.Models;
+using System.Text.Json;
 
 namespace SmartEventPlatform.RegistrationService.Controllers;
 
@@ -15,11 +18,13 @@ public class RegistrationsController : ControllerBase
 {
     private readonly RegistrationDbContext _context;
     private readonly IEventServiceClient _eventServiceClient;
+    private readonly ILogger<RegistrationsController> _logger;
 
-    public RegistrationsController(RegistrationDbContext context, IEventServiceClient eventServiceClient)
+    public RegistrationsController(RegistrationDbContext context, IEventServiceClient eventServiceClient, ILogger<RegistrationsController> logger)
     {
         _context = context;
         _eventServiceClient = eventServiceClient;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -106,7 +111,6 @@ public class RegistrationsController : ControllerBase
             return BadRequest("Selected participant does not exist.");
         }
 
-
         var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(dto.EventId);
 
         if (!eventInfo.Exists)
@@ -128,17 +132,45 @@ public class RegistrationsController : ControllerBase
             return BadRequest("Registration is not possible because the registration location capacity has been reached.");
         }
 
-        var registration = new Registration
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
         {
-            EventId = dto.EventId,
-            ParticipantId = dto.ParticipantId,
-            RegistrationDate = dto.RegistrationDate
-        };
+            var registration = new Registration
+            {
+                EventId = dto.EventId,
+                ParticipantId = dto.ParticipantId,
+                RegistrationDate = dto.RegistrationDate
+            };
 
-        _context.Registrations.Add(registration);
-        await _context.SaveChangesAsync();
+            _context.Registrations.Add(registration);
+            await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = registration.RegistrationId }, registration.RegistrationId);
+            // Outbox — u istoj transakciji
+            _context.OutboxMessages.Add(new OutboxMessage
+            {
+                EventType = nameof(RegistrationCreatedEvent),
+                Payload = JsonSerializer.Serialize(new RegistrationCreatedEvent
+                {
+                    RegistrationId = registration.RegistrationId,
+                    EventId = registration.EventId,
+                    ParticipantId = registration.ParticipantId,
+                    RegistrationDate = registration.RegistrationDate
+                }),
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return CreatedAtAction(nameof(GetById), new { id = registration.RegistrationId }, registration.RegistrationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Greska pri kreiranju registracije.");
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     [HttpPut("{id:long}")]
@@ -249,10 +281,34 @@ public class RegistrationsController : ControllerBase
             return NotFound();
         }
 
-        _context.Registrations.Remove(registration);
-        await _context.SaveChangesAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync();
 
-        return NoContent();
+        try
+        {
+            // Outbox — u istoj transakciji kao i brisanje
+            _context.OutboxMessages.Add(new OutboxMessage
+            {
+                EventType = nameof(RegistrationDeletedEvent),
+                Payload = JsonSerializer.Serialize(new RegistrationDeletedEvent
+                {
+                    RegistrationId = registration.RegistrationId,
+                    EventId = registration.EventId
+                }),
+                CreatedAt = DateTime.UtcNow
+            });
+
+            _context.Registrations.Remove(registration);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Greska pri brisanju registracije.");
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     [HttpGet("exists-for-event/{eventId:long}")]
