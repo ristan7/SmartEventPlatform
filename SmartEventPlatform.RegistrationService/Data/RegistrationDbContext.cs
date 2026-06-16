@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.RegistrationService.Messaging;
 using SmartEventPlatform.RegistrationService.Models;
 
 namespace SmartEventPlatform.RegistrationService.Data
@@ -12,6 +13,7 @@ namespace SmartEventPlatform.RegistrationService.Data
 
         public DbSet<Participant> Participants { get; set; }
         public DbSet<Registration> Registrations { get; set; }
+        public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -41,6 +43,13 @@ namespace SmartEventPlatform.RegistrationService.Data
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasIndex(r => new { r.EventId, r.ParticipantId }).IsUnique();
+            });
+
+            modelBuilder.Entity<OutboxMessage>(entity =>
+            {
+                entity.ToTable("OutboxMessages");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.CreatedAt);
             });
         }
     }
