@@ -35,7 +35,7 @@ namespace SmartEventPlatform.EventService.Messaging
                         {
                             await publisher.PublishAsync(
                                 message.Payload,
-                                message.Id.ToString(),
+                                message.MessageId,
                                 message.EventType,
                                 stoppingToken);
 

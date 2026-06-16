@@ -49,7 +49,19 @@ namespace SmartEventPlatform.RegistrationService.Data
             {
                 entity.ToTable("OutboxMessages");
                 entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.MessageId)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.EventType)
+                    .IsRequired();
+
+                entity.Property(e => e.Payload)
+                    .IsRequired();
+
                 entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.MessageId).IsUnique();
             });
         }
     }

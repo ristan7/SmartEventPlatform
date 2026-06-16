@@ -51,6 +51,12 @@ namespace SmartEventPlatform.DirectoryService.Data
             {
                 entity.ToTable("LocationUsageTrackers");
                 entity.HasKey(e => e.EventId);
+                entity.Property(e => e.EventId)
+                      .ValueGeneratedNever();
+
+                entity.Property(e => e.LocationId)
+                      .IsRequired();
+
                 entity.HasIndex(e => e.LocationId);
             });
 
@@ -58,6 +64,12 @@ namespace SmartEventPlatform.DirectoryService.Data
             {
                 entity.ToTable("SpeakerUsageTrackers");
                 entity.HasKey(e => e.EventSpeakerId);
+                entity.Property(e => e.EventSpeakerId)
+                      .ValueGeneratedNever();
+
+                entity.Property(e => e.SpeakerId)
+                      .IsRequired();
+
                 entity.HasIndex(e => e.SpeakerId);
             });
         }

@@ -69,7 +69,19 @@ namespace SmartEventPlatform.EventService.Data
             {
                 entity.ToTable("OutboxMessages");
                 entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.MessageId)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.EventType)
+                    .IsRequired();
+
+                entity.Property(e => e.Payload)
+                    .IsRequired();
+
                 entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.MessageId).IsUnique();
             });
 
             modelBuilder.Entity<ProcessedMessage>(entity =>
@@ -83,6 +95,12 @@ namespace SmartEventPlatform.EventService.Data
             {
                 entity.ToTable("EventRegistrationTrackers");
                 entity.HasKey(e => e.EventId);
+
+                entity.Property(e => e.EventId)
+                      .ValueGeneratedNever();
+
+                entity.Property(e => e.RegistrationCount)
+                      .IsRequired();
             });
         }
     }

@@ -198,6 +198,32 @@ Example scenarios:
 * checking whether a location is used before deleting it
 * checking whether a speaker is used before deleting it
 
+## Asynchronous Messaging - Task 3
+
+The application also implements asynchronous communication between services using RabbitMQ.
+
+Implemented messaging flows:
+
+* `RegistrationService -> EventService`
+  * `RegistrationCreatedEvent`
+  * `RegistrationDeletedEvent`
+
+* `EventService -> DirectoryService`
+  * `EventCreatedEvent`
+  * `EventDeletedEvent`
+  * `EventSpeakerAddedEvent`
+  * `EventSpeakerRemovedEvent`
+
+The producer services do not publish messages directly from controller logic only.
+Instead, they first store integration events in a local `OutboxMessages` table in the same database transaction as the business change.
+
+A background service later reads pending outbox messages and publishes them to RabbitMQ.
+
+Consumer services store processed message identifiers in a `ProcessedMessages` table.
+This makes consumers idempotent, because receiving the same RabbitMQ message multiple times does not duplicate the business effect.
+
+This follows the outbox pattern and prevents message loss if the database operation succeeds but RabbitMQ is temporarily unavailable.
+
 ## Technology Stack
 
 * ASP.NET Core MVC
@@ -208,6 +234,7 @@ Example scenarios:
 * Razor Views
 * HttpClientFactory
 * Polly
+* RabbitMQ
 
 ## Notes
 
