@@ -2,10 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using Polly;
 using SmartEventPlatform.Contracts.Events;
+using SmartEventPlatform.Contracts.Events.Integration;
 using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
+using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Models;
 using System.Diagnostics.Metrics;
+using System.Text.Json;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
@@ -15,18 +18,19 @@ namespace SmartEventPlatform.EventService.Controllers
     {
         private readonly EventDbContext _context;
         private readonly IDirectoryServiceClient _directoryServiceClient;
-        private readonly IRegistrationServiceClient _registrationServiceClient;
+        //private readonly IRegistrationServiceClient _registrationServiceClient;
+        private readonly ILogger<EventsController> _logger;
 
         //private static int _counter = 0;
 
         public EventsController(
             EventDbContext context,
             IDirectoryServiceClient directoryServiceClient,
-            IRegistrationServiceClient registrationServiceClient)
+            ILogger<EventsController> logger)
         {
             _context = context;
             _directoryServiceClient = directoryServiceClient;
-            _registrationServiceClient = registrationServiceClient;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -182,24 +186,50 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest("Selected event type does not exist.");
             }
 
-            var newEvent = new Event
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                EventName = dto.EventName,
-                Agenda = dto.Agenda,
-                EventDateTime = dto.EventDateTime,
-                DurationInMinutes = dto.DurationInMinutes,
-                RegistrationFee = dto.RegistrationFee,
-                LocationId = dto.LocationId,
-                LocationNameSnapshot = location.LocationName,
-                LocationAddressSnapshot = location.Address,
-                LocationCapacitySnapshot = location.Capacity,
-                EventTypeId = dto.EventTypeId
-            };
+                var newEvent = new Event
+                {
+                    EventName = dto.EventName,
+                    Agenda = dto.Agenda,
+                    EventDateTime = dto.EventDateTime,
+                    DurationInMinutes = dto.DurationInMinutes,
+                    RegistrationFee = dto.RegistrationFee,
+                    LocationId = dto.LocationId,
+                    LocationNameSnapshot = location.LocationName,
+                    LocationAddressSnapshot = location.Address,
+                    LocationCapacitySnapshot = location.Capacity,
+                    EventTypeId = dto.EventTypeId
+                };
 
-            _context.Events.Add(newEvent);
-            await _context.SaveChangesAsync();
+                _context.Events.Add(newEvent);
+                await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = newEvent.EventId }, newEvent.EventId);
+                // Outbox — obavijesti DirectoryService da je event kreiran
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(EventCreatedEvent),
+                    Payload = JsonSerializer.Serialize(new EventCreatedEvent
+                    {
+                        EventId = newEvent.EventId,
+                        LocationId = newEvent.LocationId
+                    }),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return CreatedAtAction(nameof(GetById), new { id = newEvent.EventId }, newEvent.EventId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greska pri kreiranju eventa.");
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         [HttpPut("{id:long}")]
@@ -232,6 +262,8 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest("Selected event type does not exist.");
             }
 
+            var oldLocationId = existingEvent.LocationId;
+
             existingEvent.EventName = dto.EventName;
             existingEvent.Agenda = dto.Agenda;
             existingEvent.EventDateTime = dto.EventDateTime;
@@ -243,18 +275,55 @@ namespace SmartEventPlatform.EventService.Controllers
             existingEvent.LocationCapacitySnapshot = location.Capacity;
             existingEvent.EventTypeId = dto.EventTypeId;
 
-            try
+            // Ako se lokacija promijenila, direktoryService treba znati
+            // Šaljemo delete za staru + create za novu lokaciju
+            if (oldLocationId != dto.LocationId)
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await EventExistsAsync(id))
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    return NotFound();
-                }
+                    await _context.SaveChangesAsync();
 
-                throw;
+                    _context.OutboxMessages.Add(new OutboxMessage
+                    {
+                        EventType = nameof(EventDeletedEvent),
+                        Payload = JsonSerializer.Serialize(new EventDeletedEvent
+                        {
+                            EventId = id,
+                            LocationId = oldLocationId
+                        }),
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                    _context.OutboxMessages.Add(new OutboxMessage
+                    {
+                        EventType = nameof(EventCreatedEvent),
+                        Payload = JsonSerializer.Serialize(new EventCreatedEvent
+                        {
+                            EventId = id,
+                            LocationId = dto.LocationId
+                        }),
+                        CreatedAt = DateTime.UtcNow.AddMilliseconds(1)
+                    });
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Greska pri azuriranju eventa.");
+                    await transaction.RollbackAsync();
+                    throw;
+                }
+            }
+            else
+            {
+                try { await _context.SaveChangesAsync(); }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!await EventExistsAsync(id)) return NotFound();
+                    throw;
+                }
             }
 
             return NoContent();
@@ -312,7 +381,9 @@ namespace SmartEventPlatform.EventService.Controllers
                 deleteErrors.Add("This event cannot be deleted because it has assigned speakers.");
             }
 
-            var hasRegistrations = await _registrationServiceClient.EventHasRegistrationsAsync(id);
+            //var hasRegistrations = await _registrationServiceClient.EventHasRegistrationsAsync(id);
+            // ZAMJENA HTTP POZIVA: koristimo lokalnu tabelu EventRegistrationTrackers
+            var hasRegistrations = await _context.EventRegistrationTrackers.AnyAsync(t => t.EventId == id && t.RegistrationCount > 0);
 
             if (hasRegistrations)
             {
@@ -324,16 +395,42 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest(string.Join(" ", deleteErrors));
             }
 
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
             try
             {
+                var locationId = existingEvent.LocationId;
+
                 _context.Events.Remove(existingEvent);
                 await _context.SaveChangesAsync();
+
+                // Outbox — obavijesti DirectoryService da je event obrisan
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(EventDeletedEvent),
+                    Payload = JsonSerializer.Serialize(new EventDeletedEvent
+                    {
+                        EventId = id,
+                        LocationId = locationId
+                    }),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
                 return NoContent();
             }
             catch (DbUpdateException)
             {
+                await transaction.RollbackAsync();
                 return BadRequest("This event cannot be deleted because it is used by other records.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Greska pri brisanju eventa.");
+                await transaction.RollbackAsync();
+                throw;
             }
         }
 
