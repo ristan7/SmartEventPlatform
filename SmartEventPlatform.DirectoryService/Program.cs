@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.DirectoryService.Clients;
 using SmartEventPlatform.DirectoryService.Data;
 using SmartEventPlatform.DirectoryService.ErrorHandling;
+using SmartEventPlatform.DirectoryService.Messaging;
 using SmartEventPlatform.DirectoryService.Resilience;
 
 namespace SmartEventPlatform.DirectoryService
@@ -19,6 +20,10 @@ namespace SmartEventPlatform.DirectoryService
 
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+            builder.Services.Configure<RabbitMqOptions>(
+                builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<EventEventsConsumerService>();
 
             builder.Services.AddSingleton<EventServiceCircuitBreaker>();
 

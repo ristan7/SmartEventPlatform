@@ -13,12 +13,12 @@ namespace SmartEventPlatform.DirectoryService.Controllers
     public class LocationsController : ControllerBase
     {
         private readonly DirectoryDbContext _context;
-        private readonly IEventUsageClient _eventUsageClient;
+        //private readonly IEventUsageClient _eventUsageClient;
 
-        public LocationsController(DirectoryDbContext context, IEventUsageClient eventUsageClient)
+        public LocationsController(DirectoryDbContext context)
         {
             _context = context;
-            _eventUsageClient = eventUsageClient;
+            //_eventUsageClient = eventUsageClient;
         }
 
         [HttpGet]
@@ -154,7 +154,8 @@ namespace SmartEventPlatform.DirectoryService.Controllers
                 return NotFound();
             }
 
-            var hasEvents = await _eventUsageClient.ExistsForLocationAsync(id);
+            //var hasEvents = await _eventUsageClient.ExistsForLocationAsync(id);
+            var hasEvents = await _context.LocationUsageTrackers.AnyAsync(t=> t.LocationId == id);
 
             if (hasEvents)
             {

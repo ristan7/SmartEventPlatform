@@ -13,12 +13,12 @@ namespace SmartEventPlatform.DirectoryService.Controllers
     public class SpeakersController : ControllerBase
     {
         private readonly DirectoryDbContext _context;
-        private readonly IEventUsageClient _eventUsageClient;
+        //private readonly IEventUsageClient _eventUsageClient;
 
-        public SpeakersController(DirectoryDbContext context, IEventUsageClient eventUsageClient)
+        public SpeakersController(DirectoryDbContext context)
         {
             _context = context;
-            _eventUsageClient = eventUsageClient;
+            //_eventUsageClient = eventUsageClient;
         }
 
         [HttpGet]
@@ -160,7 +160,8 @@ namespace SmartEventPlatform.DirectoryService.Controllers
                 return NotFound();
             }
 
-            var hasEventSpeakers = await _eventUsageClient.ExistsForSpeakerAsync(id);
+            //var hasEventSpeakers = await _eventUsageClient.ExistsForSpeakerAsync(id);
+            var hasEventSpeakers = await _context.SpeakerUsageTrackers.AnyAsync(t => t.SpeakerId == id);
 
             if (hasEventSpeakers)
             {
