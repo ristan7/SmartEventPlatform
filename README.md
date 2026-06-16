@@ -1,33 +1,53 @@
-# Event Management Platform
+# Smart Event Platform
 
-Platform for managing professional events, speakers, locations, participants, and participant registrations.
+Smart Event Platform is a microservice-based application for managing professional events, speakers, locations, participants, and participant registrations.
+
+The application was originally developed as a monolithic ASP.NET Core MVC application and was later decomposed into multiple backend services.
 
 ## Architecture
 
-The application is implemented as a microservice-based system.
+The solution is implemented using a microservice-based architecture.
 
-The solution is decomposed into the following projects:
+The system is decomposed into the following projects:
 
-- `SmartEventPlatform.EventService`
-- `SmartEventPlatform.RegistrationService`
-- `SmartEventPlatformWeb`
-- `SmartEventPlatform.Contracts`
+* `SmartEventPlatform.EventService`
+* `SmartEventPlatform.DirectoryService`
+* `SmartEventPlatform.RegistrationService`
+* `SmartEventPlatformWeb`
+* `SmartEventPlatform.Contracts`
+
+Each backend service owns its own domain logic and database. The MVC frontend does not access service databases directly. Instead, it communicates with backend services through HTTP clients.
 
 ## Service Decomposition
 
 ### EventService
 
-`EventService` is responsible for the event catalogue and event organization domain.
+`EventService` is responsible for the event organization domain.
 
 It manages:
 
-- events
-- locations
-- speakers
-- event types
-- event-speaker assignments
+* events
+* event types
+* event-speaker assignments
+* event catalogue data
+* event-related validation rules
 
-These functionalities are grouped in the same service because they describe professional events and their organizational structure. Events depend on locations, event types, and speakers, so they belong to the same bounded context.
+Events represent the central part of the event organization process. This service stores event data and references external entities, such as locations and speakers, by their identifiers.
+
+`EventService` does not directly own locations, speakers, participants, or registrations.
+
+### DirectoryService
+
+`DirectoryService` is responsible for the directory/catalogue domain.
+
+It manages:
+
+* locations
+* speakers
+
+Locations and speakers are separated from `EventService` because they are independent entities with their own lifecycle. A location or speaker can exist independently of a specific event and can be reused across multiple events.
+
+This separation makes the system more aligned with microservice principles because each service owns a clearly defined business responsibility.
 
 ### RegistrationService
 
@@ -35,84 +55,173 @@ These functionalities are grouped in the same service because they describe prof
 
 It manages:
 
-- participants
-- registrations
-- available events calculation
+* participants
+* registrations
+* available events calculation
+* registration-related validation rules
 
-Registrations are separated into their own service because they represent a different business process from event organization. This service stores only the `EventId` as a reference to an event owned by `EventService`.
+Registrations are separated into their own service because participant registration is a different business process from event organization.
+
+`RegistrationService` stores only the `EventId` as a reference to an event owned by `EventService`.
 
 ### SmartEventPlatformWeb
 
-`SmartEventPlatformWeb` is the MVC frontend application.
+`SmartEventPlatformWeb` is the ASP.NET Core MVC frontend application.
 
-It does not access service databases directly. Instead, it communicates with backend services through HTTP clients.
+It is responsible for:
+
+* rendering Razor views
+* handling user interaction
+* calling backend services through HTTP clients
+* displaying validation and error messages to the user
+
+The frontend does not access service databases directly.
 
 ### Contracts
 
 `SmartEventPlatform.Contracts` contains shared DTO classes used for communication between the frontend and backend services.
 
-This project is used to standardize request and response models between services.
+This project is used to standardize request and response models between services and avoid duplicating contract classes across projects.
 
 ## Inter-Service Communication
 
 The services communicate using synchronous HTTP communication.
 
-`RegistrationService` communicates with `EventService` when creating or editing registrations. This communication is necessary because `RegistrationService` must verify that the selected event exists and that the event location capacity has not been reached.
+The main communication flows are:
 
-`EventService` communicates with `RegistrationService` before deleting an event. This communication is necessary because an event that already has participant registrations must not be deleted.
+* `SmartEventPlatformWeb -> EventService`
+* `SmartEventPlatformWeb -> DirectoryService`
+* `SmartEventPlatformWeb -> RegistrationService`
+* `EventService -> DirectoryService`
+* `EventService -> RegistrationService`
+* `RegistrationService -> EventService`
+
+### RegistrationService -> EventService
+
+`RegistrationService` communicates with `EventService` when creating or editing registrations.
+
+This communication is necessary because `RegistrationService` must verify that:
+
+* the selected event exists
+* the event is available for registration
+* the event location capacity has not been reached
+
+### EventService -> RegistrationService
+
+`EventService` communicates with `RegistrationService` before deleting an event.
+
+This communication is necessary because an event that already has participant registrations must not be deleted.
+
+### EventService -> DirectoryService
+
+`EventService` communicates with `DirectoryService` when working with event locations and speakers.
+
+This communication is necessary because locations and speakers are owned by `DirectoryService`, while events only reference them.
+
+### DirectoryService -> EventService
+
+`DirectoryService` communicates with `EventService` before deleting a location or speaker.
+
+This communication is necessary because a location or speaker that is already used by an event must not be deleted.
 
 ## Resiliency Mechanisms
 
 The application implements the following resiliency mechanisms for inter-service communication:
 
-- retry
-- timeout
-- circuit breaker
+* retry
+* timeout
+* circuit breaker
 
-### Retry
+These mechanisms are implemented to make communication between services more reliable and to prevent the whole system from failing immediately when one service is temporarily unavailable.
+
+## Retry
 
 Retry is implemented using Polly.
 
 If a temporary communication failure occurs, the request is repeated before the operation is considered failed.
 
-### Timeout
+This is useful for short temporary failures such as:
+
+* network interruptions
+* temporary service unavailability
+* transient HTTP failures
+
+## Timeout
 
 Timeout is configured through `HttpClient.Timeout`.
 
 This prevents one service from waiting indefinitely for another service to respond.
 
-### Circuit Breaker
+If the called service does not respond within the configured time, the request is cancelled and handled as a timeout error.
 
-Circuit breaker is implemented manually using a custom `CircuitBreaker` class, following the approach used in the exercise example.
+## Circuit Breaker
+
+Circuit breaker is implemented manually using a custom circuit breaker class, following the approach used in the exercise example.
 
 If repeated failures occur while calling another service, the circuit breaker opens and temporarily prevents further calls to that service.
 
-## Demonstrated Communication Scenarios
+This prevents unnecessary repeated calls to a service that is currently unavailable.
 
-The resiliency mechanisms are demonstrated on the following service-to-service communication flows:
+The circuit breaker supports the following states:
 
-- `RegistrationService -> EventService`
-- `EventService -> RegistrationService`
+* `Closed`
+* `Open`
+* `HalfOpen`
+
+## Error Handling
+
+Backend services use global exception handling to convert exceptions into appropriate HTTP responses.
 
 Examples:
 
-- checking event information before creating or editing a registration
-- loading events for available events calculation
-- checking whether an event has registrations before deleting it
+* business validation errors are returned as client errors
+* timeout errors are returned as gateway timeout responses
+* circuit breaker errors are returned as service unavailable responses
+* unexpected errors are returned as internal server errors
+
+The frontend handles these responses and displays user-friendly error messages instead of stopping the application.
+
+## Demonstrated Communication Scenarios
+
+The resiliency mechanisms are demonstrated on service-to-service communication flows such as:
+
+* `RegistrationService -> EventService`
+* `EventService -> RegistrationService`
+* `EventService -> DirectoryService`
+* `DirectoryService -> EventService`
+
+Example scenarios:
+
+* checking event information before creating or editing a registration
+* checking event capacity before allowing a registration
+* checking whether an event has registrations before deleting it
+* checking whether a location is used before deleting it
+* checking whether a speaker is used before deleting it
 
 ## Technology Stack
 
-- ASP.NET Core MVC
-- ASP.NET Core Web API
-- .NET 9
-- Entity Framework Core
-- SQL Server
-- Razor Views
-- HttpClientFactory
-- Polly
+* ASP.NET Core MVC
+* ASP.NET Core Web API
+* .NET 9
+* Entity Framework Core
+* SQL Server
+* Razor Views
+* HttpClientFactory
+* Polly
 
 ## Notes
 
-The application was originally developed as a monolithic MVC application and was later decomposed into multiple services.
+The current version follows a microservice-based architecture with:
 
-The current version follows a microservice-based architecture with separate backend services, separate databases, shared DTO contracts, HTTP-based communication, and resiliency mechanisms implemented according to the exercise example.
+* separate backend services
+* separate service responsibilities
+* separate databases
+* shared DTO contracts
+* HTTP-based service communication
+* retry mechanism
+* timeout mechanism
+* manual circuit breaker mechanism
+* global exception handling
+* frontend error handling
+
+The decomposition separates event organization, directory management, and participant registration into different services, making the system more modular and aligned with microservice architecture principles.
