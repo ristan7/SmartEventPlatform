@@ -217,16 +217,55 @@ public class RegistrationsController : ControllerBase
             return BadRequest("Registration is not possible because the event location capacity has been reached.");
         }
 
-        registration.EventId = dto.EventId;
-        registration.ParticipantId = dto.ParticipantId;
-        registration.RegistrationDate = dto.RegistrationDate;
+        var oldEventId = registration.EventId;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
         {
+            registration.EventId = dto.EventId;
+            registration.ParticipantId = dto.ParticipantId;
+            registration.RegistrationDate = dto.RegistrationDate;
+
             await _context.SaveChangesAsync();
+
+            if (oldEventId != dto.EventId)
+            {
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(RegistrationDeletedEvent),
+                    Payload = JsonSerializer.Serialize(new RegistrationDeletedEvent
+                    {
+                        RegistrationId = registration.RegistrationId,
+                        EventId = oldEventId
+                    }),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(RegistrationCreatedEvent),
+                    Payload = JsonSerializer.Serialize(new RegistrationCreatedEvent
+                    {
+                        RegistrationId = registration.RegistrationId,
+                        EventId = dto.EventId,
+                        ParticipantId = dto.ParticipantId,
+                        RegistrationDate = dto.RegistrationDate
+                    }),
+                    CreatedAt = DateTime.UtcNow.AddMilliseconds(1)
+                });
+
+                await _context.SaveChangesAsync();
+            }
+
+            await transaction.CommitAsync();
+
+            return NoContent();
         }
         catch (DbUpdateConcurrencyException)
         {
+            await transaction.RollbackAsync();
+
             if (!await RegistrationExistsAsync(id))
             {
                 return NotFound();
@@ -234,8 +273,12 @@ public class RegistrationsController : ControllerBase
 
             throw;
         }
-
-        return NoContent();
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Greska pri azuriranju registracije.");
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     [HttpGet("{id:long}/delete-info")]

@@ -22,10 +22,32 @@ namespace SmartEventPlatform.EventService.Migrations
                 {
                     table.PrimaryKey("PK_EventRegistrationTrackers", x => x.EventId);
                 });
+
+            migrationBuilder.AddColumn<string>(
+                name: "MessageId",
+                table: "OutboxMessages",
+                type: "nvarchar(100)",
+                maxLength: 100,
+                nullable: false,
+                defaultValueSql: "REPLACE(CONVERT(nvarchar(36), NEWID()), '-', '')");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OutboxMessages_MessageId",
+                table: "OutboxMessages",
+                column: "MessageId",
+                unique: true);
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropIndex(
+                name: "IX_OutboxMessages_MessageId",
+                table: "OutboxMessages");
+
+            migrationBuilder.DropColumn(
+                name: "MessageId",
+                table: "OutboxMessages");
+
             migrationBuilder.DropTable(
                 name: "EventRegistrationTrackers");
 
