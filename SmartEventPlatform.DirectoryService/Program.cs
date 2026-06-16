@@ -27,11 +27,11 @@ namespace SmartEventPlatform.DirectoryService
 
             builder.Services.AddSingleton<EventServiceCircuitBreaker>();
 
-            builder.Services.AddHttpClient<IEventUsageClient, EventUsageClient>(client =>
-            {
-                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
-                client.Timeout = TimeSpan.FromSeconds(3);
-            });
+            //builder.Services.AddHttpClient<IEventUsageClient, EventUsageClient>(client =>
+            //{
+            //    client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
+            //    client.Timeout = TimeSpan.FromSeconds(3);
+            //});
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
