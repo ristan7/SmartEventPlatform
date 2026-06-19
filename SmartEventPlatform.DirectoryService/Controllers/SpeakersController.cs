@@ -1,8 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.Speakers;
-using SmartEventPlatform.DirectoryService.Clients;
 using SmartEventPlatform.DirectoryService.Data;
 using SmartEventPlatform.DirectoryService.Models;
 
@@ -13,12 +11,10 @@ namespace SmartEventPlatform.DirectoryService.Controllers
     public class SpeakersController : ControllerBase
     {
         private readonly DirectoryDbContext _context;
-        //private readonly IEventUsageClient _eventUsageClient;
 
         public SpeakersController(DirectoryDbContext context)
         {
             _context = context;
-            //_eventUsageClient = eventUsageClient;
         }
 
         [HttpGet]
@@ -51,7 +47,7 @@ namespace SmartEventPlatform.DirectoryService.Controllers
                     FirstName = s.FirstName,
                     LastName = s.LastName,
                     Title = s.Title,
-                    ExpertiseAreas = s.ExpertiseAreas,
+                    ExpertiseAreas = s.ExpertiseAreas
                 })
                 .FirstOrDefaultAsync();
 
@@ -160,8 +156,11 @@ namespace SmartEventPlatform.DirectoryService.Controllers
                 return NotFound();
             }
 
-            //var hasEventSpeakers = await _eventUsageClient.ExistsForSpeakerAsync(id);
-            var hasEventSpeakers = await _context.SpeakerUsageTrackers.AnyAsync(t => t.SpeakerId == id);
+            // DirectoryService ne zove EventService direktno.
+            // Upotreba predavača se prati lokalno kroz SpeakerUsageTrackers,
+            // a tabela se ažurira asinhrono porukama iz EventService-a.
+            var hasEventSpeakers = await _context.SpeakerUsageTrackers
+                .AnyAsync(t => t.SpeakerId == id);
 
             if (hasEventSpeakers)
             {

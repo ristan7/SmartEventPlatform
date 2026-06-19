@@ -8,9 +8,9 @@
         public int Port { get; set; } = 5672;
         public string UserName { get; set; } = "guest";
         public string Password { get; set; } = "guest";
-        public string Exchange { get; set; } = "registration.events";
-        public string Queue { get; set; } = "registration.events.queue";
-        public string RoutingKey { get; set; } = "registration.event";
+        public string Exchange { get; set; } = "smart-event.registration-integration";
+        public string Queue { get; set; } = "event.registration-usage.queue";
+        public string RoutingKey { get; set; } = "registration.event-usage.changed";
         public ushort PrefetchCount { get; set; } = 1;
     }
 }

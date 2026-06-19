@@ -18,7 +18,6 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         var (statusCode, title, detail) = exception switch
         {
             KeyNotFoundException => (StatusCodes.Status404NotFound, "Resource not found.", exception.Message),
-            CircuitBreakerOpenException => (StatusCodes.Status503ServiceUnavailable, "Downstream circuit breaker is open.", exception.Message),
             TaskCanceledException => (StatusCodes.Status504GatewayTimeout, "Downstream request timed out.", "The downstream service did not respond in time."),
             HttpRequestException => (StatusCodes.Status503ServiceUnavailable, "Downstream service is unavailable.", exception.Message),
             InvalidOperationException => (StatusCodes.Status400BadRequest, "Business validation error.", exception.Message),

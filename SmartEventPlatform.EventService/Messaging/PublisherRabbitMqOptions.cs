@@ -8,8 +8,8 @@
         public int Port { get; set; } = 5672;
         public string UserName { get; set; } = "guest";
         public string Password { get; set; } = "guest";
-        public string Exchange { get; set; } = "event.events";
-        public string RoutingKey { get; set; } = "event.event";
-        public string Queue { get; set; } = "event.events.queue";
+        public string Exchange { get; set; } = "smart-event.event-integration";
+        public string RoutingKey { get; set; } = "event.directory-usage.changed";
+        public string Queue { get; set; } = "directory.event-usage.queue";
     }
 }

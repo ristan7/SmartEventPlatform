@@ -85,26 +85,34 @@ This project is used to standardize request and response models between services
 
 ## Inter-Service Communication
 
-The services communicate using synchronous HTTP communication.
+The system uses both synchronous HTTP communication and asynchronous messaging.
 
-The main communication flows are:
+Synchronous HTTP communication is used when the caller needs an immediate answer in order to complete the current user operation.
+
+Asynchronous messaging is used when one service needs to inform another service that something has changed, without blocking the original operation.
+
+## Synchronous HTTP Communication
+
+The main synchronous communication flows are:
 
 * `SmartEventPlatformWeb -> EventService`
 * `SmartEventPlatformWeb -> DirectoryService`
 * `SmartEventPlatformWeb -> RegistrationService`
+* `RegistrationService -> EventService`
 * `EventService -> DirectoryService`
 * `EventService -> RegistrationService`
-* `RegistrationService -> EventService`
 
 ### RegistrationService -> EventService
 
 `RegistrationService` communicates with `EventService` when creating or editing registrations.
 
-This communication is necessary because `RegistrationService` must verify that:
+This communication is necessary because `RegistrationService` must immediately verify that:
 
 * the selected event exists
 * the event is available for registration
 * the event location capacity has not been reached
+
+This is implemented synchronously because the user cannot complete a registration unless this information is known immediately.
 
 ### EventService -> RegistrationService
 
@@ -114,19 +122,97 @@ This communication is necessary because an event that already has participant re
 
 ### EventService -> DirectoryService
 
-`EventService` communicates with `DirectoryService` when working with event locations and speakers.
+`EventService` communicates with `DirectoryService` when creating or editing events and event-speaker assignments.
 
-This communication is necessary because locations and speakers are owned by `DirectoryService`, while events only reference them.
+This communication is necessary because locations and speakers are owned by `DirectoryService`, while events only reference them by identifier.
 
-### DirectoryService -> EventService
+## Asynchronous Messaging
 
-`DirectoryService` communicates with `EventService` before deleting a location or speaker.
+The application also implements asynchronous communication between services using RabbitMQ.
 
-This communication is necessary because a location or speaker that is already used by an event must not be deleted.
+Messaging is used for propagating changes between services after the main business operation has already been saved.
+
+Implemented messaging flows:
+
+* `EventService -> DirectoryService`
+  * `EventCreatedEvent`
+  * `EventDeletedEvent`
+  * `EventSpeakerAddedEvent`
+  * `EventSpeakerRemovedEvent`
+
+* `RegistrationService -> EventService`
+  * `RegistrationCreatedEvent`
+  * `RegistrationDeletedEvent`
+
+## Message Channels
+
+The application uses named RabbitMQ exchanges, queues and routing keys as logical message channels.
+
+### EventService -> DirectoryService channel
+
+This channel is used for event-related changes that affect the usage of locations and speakers.
+
+* Exchange: `smart-event.event-integration`
+* Routing key: `event.directory-usage.changed`
+* Queue: `directory.event-usage.queue`
+
+`DirectoryService` consumes these messages and updates local tracker tables:
+
+* `LocationUsageTrackers`
+* `SpeakerUsageTrackers`
+
+This allows `DirectoryService` to check whether a location or speaker is used without making a direct HTTP call to `EventService`.
+
+### RegistrationService -> EventService channel
+
+This channel is used for registration-related changes that affect the number of registrations for an event.
+
+* Exchange: `smart-event.registration-integration`
+* Routing key: `registration.event-usage.changed`
+* Queue: `event.registration-usage.queue`
+
+`EventService` consumes these messages and updates the local tracker table:
+
+* `EventRegistrationTrackers`
+
+This allows `EventService` to know whether an event has registrations without depending only on direct synchronous calls.
+
+## Message Types
+
+The application uses integration events as message types.
+
+Integration events represent something that has already happened in one service.
+
+Examples:
+
+* `EventCreatedEvent`
+* `EventDeletedEvent`
+* `EventSpeakerAddedEvent`
+* `EventSpeakerRemovedEvent`
+* `RegistrationCreatedEvent`
+* `RegistrationDeletedEvent`
+
+These messages are events, not commands. The producer does not tell the consumer what method to execute. It only publishes the fact that something happened, and the consumer decides how to react.
+
+## Outbox Pattern
+
+Producer services do not publish RabbitMQ messages directly from controller logic only.
+
+Instead, they first store integration events in a local `OutboxMessages` table in the same database transaction as the business change.
+
+A background service later reads pending outbox messages and publishes them to RabbitMQ.
+
+This prevents message loss if the database operation succeeds but RabbitMQ is temporarily unavailable.
+
+## Idempotent Consumers
+
+Consumer services store processed message identifiers in a `ProcessedMessages` table.
+
+This makes consumers idempotent, because receiving the same RabbitMQ message multiple times does not duplicate the business effect.
 
 ## Resiliency Mechanisms
 
-The application implements the following resiliency mechanisms for inter-service communication:
+The application implements the following resiliency mechanisms for synchronous inter-service HTTP communication:
 
 * retry
 * timeout
@@ -183,22 +269,24 @@ The frontend handles these responses and displays user-friendly error messages i
 
 ## Demonstrated Communication Scenarios
 
-The resiliency mechanisms are demonstrated on service-to-service communication flows such as:
+The resiliency mechanisms are demonstrated on service-to-service HTTP communication flows such as:
 
 * `RegistrationService -> EventService`
 * `EventService -> RegistrationService`
 * `EventService -> DirectoryService`
-* `DirectoryService -> EventService`
 
 Example scenarios:
 
 * checking event information before creating or editing a registration
 * checking event capacity before allowing a registration
 * checking whether an event has registrations before deleting it
-* checking whether a location is used before deleting it
-* checking whether a speaker is used before deleting it
+* checking whether a location exists before creating or editing an event
+* checking whether a speaker exists before assigning the speaker to an event
 
-## Asynchronous Messaging - Task 3
+Asynchronous messaging is demonstrated through RabbitMQ flows:
+
+* `EventService -> DirectoryService`
+* `RegistrationService -> EventService`
 
 The application also implements asynchronous communication between services using RabbitMQ.
 

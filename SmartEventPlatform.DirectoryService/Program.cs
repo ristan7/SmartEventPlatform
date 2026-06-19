@@ -1,9 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using SmartEventPlatform.DirectoryService.Clients;
 using SmartEventPlatform.DirectoryService.Data;
 using SmartEventPlatform.DirectoryService.ErrorHandling;
 using SmartEventPlatform.DirectoryService.Messaging;
-using SmartEventPlatform.DirectoryService.Resilience;
 
 namespace SmartEventPlatform.DirectoryService
 {
@@ -25,14 +23,6 @@ namespace SmartEventPlatform.DirectoryService
                 builder.Configuration.GetSection(RabbitMqOptions.SectionName));
             builder.Services.AddHostedService<EventEventsConsumerService>();
 
-            builder.Services.AddSingleton<EventServiceCircuitBreaker>();
-
-            //builder.Services.AddHttpClient<IEventUsageClient, EventUsageClient>(client =>
-            //{
-            //    client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
-            //    client.Timeout = TimeSpan.FromSeconds(3);
-            //});
-
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
@@ -53,7 +43,6 @@ namespace SmartEventPlatform.DirectoryService
             app.UseHttpsRedirection();
 
             app.UseAuthorization();
-
 
             app.MapControllers();
 
