@@ -6,7 +6,16 @@ namespace SmartEventPlatform.EventService.Messaging
 {
     public interface IRabbitMqPublisher
     {
-        Task PublishAsync(string payload, string messageId, string eventType, CancellationToken cancellationToken);
+        /// <summary>
+        /// Publishes a message to the configured exchange using the supplied routing key.
+        /// The routing key determines which queue the message is delivered to.
+        /// </summary>
+        Task PublishAsync(
+            string payload,
+            string messageId,
+            string eventType,
+            string routingKey,
+            CancellationToken cancellationToken);
     }
 
     public sealed class RabbitMqPublisher : IRabbitMqPublisher, IAsyncDisposable
@@ -29,7 +38,12 @@ namespace SmartEventPlatform.EventService.Messaging
             };
         }
 
-        public async Task PublishAsync(string payload, string messageId, string eventType, CancellationToken cancellationToken)
+        public async Task PublishAsync(
+            string payload,
+            string messageId,
+            string eventType,
+            string routingKey,
+            CancellationToken cancellationToken)
         {
             await EnsureInitializedAsync(cancellationToken);
 
@@ -48,13 +62,17 @@ namespace SmartEventPlatform.EventService.Messaging
 
             await _channel.BasicPublishAsync(
                 exchange: _options.Exchange,
-                routingKey: _options.RoutingKey,
+                routingKey: routingKey,
                 mandatory: true,
                 basicProperties: properties,
                 body: body,
                 cancellationToken: cancellationToken);
         }
 
+        /// <summary>
+        /// Opens the connection once and declares the exchange + both queues with their bindings.
+        /// All subsequent publish calls reuse the same channel.
+        /// </summary>
         private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
         {
             if (_channel is not null) return;
@@ -67,21 +85,42 @@ namespace SmartEventPlatform.EventService.Messaging
                 _connection = await _factory.CreateConnectionAsync(cancellationToken);
                 _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
+                // Declare the shared exchange
                 await _channel.ExchangeDeclareAsync(
                     exchange: _options.Exchange,
                     type: ExchangeType.Direct,
-                    durable: true, autoDelete: false,
+                    durable: true,
+                    autoDelete: false,
                     cancellationToken: cancellationToken);
 
+                // Declare location-usage queue and bind it
                 await _channel.QueueDeclareAsync(
-                    queue: _options.Queue, durable: true,
-                    exclusive: false, autoDelete: false,
-                    arguments: null, cancellationToken: cancellationToken);
+                    queue: _options.LocationUsageQueue,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null,
+                    cancellationToken: cancellationToken);
 
                 await _channel.QueueBindAsync(
-                    queue: _options.Queue,
+                    queue: _options.LocationUsageQueue,
                     exchange: _options.Exchange,
-                    routingKey: _options.RoutingKey,
+                    routingKey: _options.LocationUsageRoutingKey,
+                    cancellationToken: cancellationToken);
+
+                // Declare speaker-usage queue and bind it
+                await _channel.QueueDeclareAsync(
+                    queue: _options.SpeakerUsageQueue,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null,
+                    cancellationToken: cancellationToken);
+
+                await _channel.QueueBindAsync(
+                    queue: _options.SpeakerUsageQueue,
+                    exchange: _options.Exchange,
+                    routingKey: _options.SpeakerUsageRoutingKey,
                     cancellationToken: cancellationToken);
             }
             finally

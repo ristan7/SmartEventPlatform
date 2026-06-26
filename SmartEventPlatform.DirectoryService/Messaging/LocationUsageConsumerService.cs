@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using SmartEventPlatform.Contracts.Events.Integration;
+using SmartEventPlatform.Contracts.Integration;
 using SmartEventPlatform.DirectoryService.Data;
 using SmartEventPlatform.DirectoryService.Models;
 using System.Text;
@@ -10,18 +10,24 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.DirectoryService.Messaging
 {
-    public sealed class EventEventsConsumerService : BackgroundService
+    /// <summary>
+    /// Consumes messages from the location-usage queue.
+    /// Handles EventCreatedEvent and EventDeletedEvent to maintain LocationUsageTrackers,
+    /// which allow DirectoryService to know whether a location is still in use
+    /// without making synchronous HTTP calls to EventService.
+    /// </summary>
+    public sealed class LocationUsageConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
-        private readonly IOptions<RabbitMqOptions> _options;
-        private readonly ILogger<EventEventsConsumerService> _logger;
+        private readonly IOptions<LocationUsageRabbitMqOptions> _options;
+        private readonly ILogger<LocationUsageConsumerService> _logger;
         private IConnection? _connection;
         private IChannel? _channel;
 
-        public EventEventsConsumerService(
+        public LocationUsageConsumerService(
             IServiceScopeFactory scopeFactory,
-            IOptions<RabbitMqOptions> options,
-            ILogger<EventEventsConsumerService> logger)
+            IOptions<LocationUsageRabbitMqOptions> options,
+            ILogger<LocationUsageConsumerService> logger)
         {
             _scopeFactory = scopeFactory;
             _options = options;
@@ -66,7 +72,9 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                 queue: mq.Queue, autoAck: false,
                 consumer: consumer, cancellationToken: stoppingToken);
 
-            _logger.LogInformation("DirectoryService Consumer sluša na queue-u {Queue}", mq.Queue);
+            _logger.LogInformation(
+                "LocationUsageConsumerService started. Listening on queue '{Queue}' (routing key: '{RoutingKey}').",
+                mq.Queue, mq.RoutingKey);
 
             try { await Task.Delay(Timeout.Infinite, stoppingToken); }
             catch (OperationCanceledException) { }
@@ -85,11 +93,12 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                 var eventType = ea.BasicProperties.Type ?? string.Empty;
                 var body = Encoding.UTF8.GetString(ea.Body.ToArray());
 
-                // Transakcija počinje PRIJE idempotency provjere.
-                // Na ovaj način provjera i upis ProcessedMessage su atomična operacija.
-                // Ako dvije instance consumera istovremeno prime istu poruku,
-                // unique constraint na MessageId garantuje da će samo jedna uspješno
-                // commitovati — druga će dobiti DbUpdateException i reschedulovati poruku.
+                // Transaction starts BEFORE the idempotency check.
+                // This makes the check and ProcessedMessage insert atomic.
+                // Under at-least-once delivery, if two consumer instances receive
+                // the same message concurrently, the unique constraint on MessageId
+                // ensures only one commit succeeds — the other gets DbUpdateException
+                // and requeues the message.
                 await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
 
                 var alreadyProcessed = await db.ProcessedMessages
@@ -102,7 +111,7 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                         var evt = JsonSerializer.Deserialize<EventCreatedEvent>(body);
                         if (evt is not null)
                         {
-                            // Novi event koristi ovu lokaciju — dodajemo tracker
+                            // A new event is using this location — record the usage
                             var exists = await db.LocationUsageTrackers
                                 .AnyAsync(t => t.EventId == evt.EventId, cancellationToken);
 
@@ -118,7 +127,7 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                         else
                         {
                             _logger.LogWarning(
-                                "Poruka {MessageId} tipa {EventType} nije mogla biti deserijalizovana.",
+                                "Could not deserialize message. MessageId={MessageId}, EventType={EventType}.",
                                 messageId, eventType);
                         }
                     }
@@ -127,7 +136,7 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                         var evt = JsonSerializer.Deserialize<EventDeletedEvent>(body);
                         if (evt is not null)
                         {
-                            // Event obrisan — lokacija više nije zauzeta ovim eventom
+                            // The event was deleted — the location is no longer occupied by it
                             var tracker = await db.LocationUsageTrackers
                                 .FirstOrDefaultAsync(t => t.EventId == evt.EventId, cancellationToken);
 
@@ -135,70 +144,22 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                                 db.LocationUsageTrackers.Remove(tracker);
                             else
                                 _logger.LogWarning(
-                                    "EventDeletedEvent stigao za EventId={EventId}, ali LocationUsageTracker ne postoji.",
+                                    "EventDeletedEvent received for EventId={EventId}, but LocationUsageTracker does not exist.",
                                     evt.EventId);
                         }
                         else
                         {
                             _logger.LogWarning(
-                                "Poruka {MessageId} tipa {EventType} nije mogla biti deserijalizovana.",
-                                messageId, eventType);
-                        }
-                    }
-                    else if (eventType == nameof(EventSpeakerAddedEvent))
-                    {
-                        var evt = JsonSerializer.Deserialize<EventSpeakerAddedEvent>(body);
-                        if (evt is not null)
-                        {
-                            var exists = await db.SpeakerUsageTrackers
-                                .AnyAsync(t => t.EventSpeakerId == evt.EventSpeakerId, cancellationToken);
-
-                            if (!exists)
-                            {
-                                db.SpeakerUsageTrackers.Add(new SpeakerUsageTracker
-                                {
-                                    EventSpeakerId = evt.EventSpeakerId,
-                                    SpeakerId = evt.SpeakerId
-                                });
-                            }
-                        }
-                        else
-                        {
-                            _logger.LogWarning(
-                                "Poruka {MessageId} tipa {EventType} nije mogla biti deserijalizovana.",
-                                messageId, eventType);
-                        }
-                    }
-                    else if (eventType == nameof(EventSpeakerRemovedEvent))
-                    {
-                        var evt = JsonSerializer.Deserialize<EventSpeakerRemovedEvent>(body);
-                        if (evt is not null)
-                        {
-                            var tracker = await db.SpeakerUsageTrackers
-                                .FirstOrDefaultAsync(t => t.EventSpeakerId == evt.EventSpeakerId, cancellationToken);
-
-                            if (tracker is not null)
-                                db.SpeakerUsageTrackers.Remove(tracker);
-                            else
-                                _logger.LogWarning(
-                                    "EventSpeakerRemovedEvent stigao za EventSpeakerId={EventSpeakerId}, ali SpeakerUsageTracker ne postoji.",
-                                    evt.EventSpeakerId);
-                        }
-                        else
-                        {
-                            _logger.LogWarning(
-                                "Poruka {MessageId} tipa {EventType} nije mogla biti deserijalizovana.",
+                                "Could not deserialize message. MessageId={MessageId}, EventType={EventType}.",
                                 messageId, eventType);
                         }
                     }
                     else
                     {
-                        // Nepoznat tip poruke — logujemo, ali ne bacamo grešku.
-                        // Poruka se ackuje (ne vraća u red) da ne bi blokirala queue,
-                        // ali se NE evidentira kao obrađena — u slučaju ponovne isporuke
-                        // (npr. pri restartu servisa) može biti ponovo evaluirana.
+                        // Unknown event type on this queue — log and ack without recording.
+                        // Not recording allows future re-evaluation if support is added later.
                         _logger.LogWarning(
-                            "Nepoznat tip poruke: {EventType}, MessageId={MessageId}. Poruka se ackuje bez obrade.",
+                            "Unknown event type '{EventType}', MessageId={MessageId}. Acknowledging without processing.",
                             eventType, messageId);
 
                         await tx.RollbackAsync(cancellationToken);
@@ -206,8 +167,8 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                         return;
                     }
 
-                    // ProcessedMessage se upisuje SAMO kada je poruka stvarno obrađena.
-                    // Ovo sprečava dvostruku obradu čak i u slučaju at-least-once isporuke.
+                    // ProcessedMessage is inserted ONLY for successfully handled messages.
+                    // This prevents duplicate processing under at-least-once delivery.
                     db.ProcessedMessages.Add(new ProcessedMessage
                     {
                         MessageId = messageId,
@@ -219,23 +180,27 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                     await tx.CommitAsync(cancellationToken);
 
                     _logger.LogInformation(
-                        "Obradjena poruka tipa {EventType}, MessageId={MessageId}",
+                        "Message processed successfully. EventType={EventType}, MessageId={MessageId}.",
                         eventType, messageId);
                 }
                 else
                 {
-                    // Poruka je već obrađena — rollback (nema šta da commitujemo) i ack.
+                    // Duplicate — rollback and ack.
                     await tx.RollbackAsync(cancellationToken);
-                    _logger.LogWarning("Poruka {MessageId} vec obradjena — preskacam.", messageId);
+                    _logger.LogWarning(
+                        "Duplicate message detected, skipping. MessageId={MessageId}.",
+                        messageId);
                 }
 
                 await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Greska pri obradi poruke. DeliveryTag={DeliveryTag}", ea.DeliveryTag);
+                _logger.LogError(ex, "Error processing location-usage message. DeliveryTag={DeliveryTag}.", ea.DeliveryTag);
                 if (_channel is not null)
-                    await _channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true, cancellationToken: cancellationToken);
+                    await _channel.BasicNackAsync(
+                        ea.DeliveryTag, multiple: false, requeue: true,
+                        cancellationToken: cancellationToken);
             }
         }
 

@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Polly;
 using SmartEventPlatform.Contracts.Events;
-using SmartEventPlatform.Contracts.Events.Integration;
+using SmartEventPlatform.Contracts.Integration;
 using SmartEventPlatform.Contracts.Registrations;
 using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;

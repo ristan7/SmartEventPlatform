@@ -8,7 +8,9 @@ namespace SmartEventPlatform.EventService.Messaging
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<OutboxMessagePublisher> _logger;
 
-        public OutboxMessagePublisher(IServiceScopeFactory scopeFactory, ILogger<OutboxMessagePublisher> logger)
+        public OutboxMessagePublisher(
+            IServiceScopeFactory scopeFactory,
+            ILogger<OutboxMessagePublisher> logger)
         {
             _scopeFactory = scopeFactory;
             _logger = logger;
@@ -33,24 +35,35 @@ namespace SmartEventPlatform.EventService.Messaging
                     {
                         try
                         {
+                            // The routing key is stored on the message itself.
+                            // This publisher has no routing logic — it reads the key
+                            // that was set when the outbox message was created.
                             await publisher.PublishAsync(
-                                message.Payload,
-                                message.MessageId,
-                                message.EventType,
-                                stoppingToken);
+                                payload: message.Payload,
+                                messageId: message.MessageId,
+                                eventType: message.EventType,
+                                routingKey: message.RoutingKey,
+                                cancellationToken: stoppingToken);
 
                             db.OutboxMessages.Remove(message);
                             await db.SaveChangesAsync(stoppingToken);
+
+                            _logger.LogInformation(
+                                "Outbox message published. EventType={EventType}, MessageId={MessageId}, RoutingKey={RoutingKey}",
+                                message.EventType, message.MessageId, message.RoutingKey);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning(ex, "Neuspjesno slanje outbox poruke ID={Id}", message.Id);
+                            _logger.LogWarning(
+                                ex,
+                                "Failed to publish outbox message. Id={Id}, EventType={EventType}, RoutingKey={RoutingKey}",
+                                message.Id, message.EventType, message.RoutingKey);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Greska u OutboxMessagePublisher.");
+                    _logger.LogError(ex, "Unexpected error in OutboxMessagePublisher.");
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);

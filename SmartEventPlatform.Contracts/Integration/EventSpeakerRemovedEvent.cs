@@ -1,6 +1,6 @@
-﻿namespace SmartEventPlatform.Contracts.Events.Integration
+﻿namespace SmartEventPlatform.Contracts.Integration
 {
-    public class EventSpeakerAddedEvent
+    public class EventSpeakerRemovedEvent
     {
         public long EventSpeakerId { get; set; }
         public long SpeakerId { get; set; }

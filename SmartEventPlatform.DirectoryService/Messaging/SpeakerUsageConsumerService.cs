@@ -3,25 +3,31 @@ using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using SmartEventPlatform.Contracts.Integration;
-using SmartEventPlatform.EventService.Data;
-using SmartEventPlatform.EventService.Models;
+using SmartEventPlatform.DirectoryService.Data;
+using SmartEventPlatform.DirectoryService.Models;
 using System.Text;
 using System.Text.Json;
 
-namespace SmartEventPlatform.EventService.Messaging
+namespace SmartEventPlatform.DirectoryService.Messaging
 {
-    public sealed class RegistrationEventsConsumerService : BackgroundService
+    /// <summary>
+    /// Consumes messages from the speaker-usage queue.
+    /// Handles EventSpeakerAddedEvent and EventSpeakerRemovedEvent to maintain
+    /// SpeakerUsageTrackers, which allow DirectoryService to know whether a speaker
+    /// has active engagements without synchronous HTTP calls to EventService.
+    /// </summary>
+    public sealed class SpeakerUsageConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
-        private readonly IOptions<ConsumerRabbitMqOptions> _options;
-        private readonly ILogger<RegistrationEventsConsumerService> _logger;
+        private readonly IOptions<SpeakerUsageRabbitMqOptions> _options;
+        private readonly ILogger<SpeakerUsageConsumerService> _logger;
         private IConnection? _connection;
         private IChannel? _channel;
 
-        public RegistrationEventsConsumerService(
+        public SpeakerUsageConsumerService(
             IServiceScopeFactory scopeFactory,
-            IOptions<ConsumerRabbitMqOptions> options,
-            ILogger<RegistrationEventsConsumerService> logger)
+            IOptions<SpeakerUsageRabbitMqOptions> options,
+            ILogger<SpeakerUsageConsumerService> logger)
         {
             _scopeFactory = scopeFactory;
             _options = options;
@@ -67,8 +73,8 @@ namespace SmartEventPlatform.EventService.Messaging
                 consumer: consumer, cancellationToken: stoppingToken);
 
             _logger.LogInformation(
-                "RegistrationEventsConsumerService started. Listening on queue '{Queue}'.",
-                mq.Queue);
+                "SpeakerUsageConsumerService started. Listening on queue '{Queue}' (routing key: '{RoutingKey}').",
+                mq.Queue, mq.RoutingKey);
 
             try { await Task.Delay(Timeout.Infinite, stoppingToken); }
             catch (OperationCanceledException) { }
@@ -81,7 +87,7 @@ namespace SmartEventPlatform.EventService.Messaging
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<EventDbContext>();
+                var db = scope.ServiceProvider.GetRequiredService<DirectoryDbContext>();
 
                 var messageId = ea.BasicProperties.MessageId ?? ea.DeliveryTag.ToString();
                 var eventType = ea.BasicProperties.Type ?? string.Empty;
@@ -100,25 +106,22 @@ namespace SmartEventPlatform.EventService.Messaging
 
                 if (!alreadyProcessed)
                 {
-                    if (eventType == nameof(RegistrationCreatedEvent))
+                    if (eventType == nameof(EventSpeakerAddedEvent))
                     {
-                        var evt = JsonSerializer.Deserialize<RegistrationCreatedEvent>(body);
+                        var evt = JsonSerializer.Deserialize<EventSpeakerAddedEvent>(body);
                         if (evt is not null)
                         {
-                            var tracker = await db.EventRegistrationTrackers
-                                .FirstOrDefaultAsync(t => t.EventId == evt.EventId, cancellationToken);
+                            // A speaker was added to an event — record the engagement
+                            var exists = await db.SpeakerUsageTrackers
+                                .AnyAsync(t => t.EventSpeakerId == evt.EventSpeakerId, cancellationToken);
 
-                            if (tracker is null)
+                            if (!exists)
                             {
-                                db.EventRegistrationTrackers.Add(new EventRegistrationTracker
+                                db.SpeakerUsageTrackers.Add(new SpeakerUsageTracker
                                 {
-                                    EventId = evt.EventId,
-                                    RegistrationCount = 1
+                                    EventSpeakerId = evt.EventSpeakerId,
+                                    SpeakerId = evt.SpeakerId
                                 });
-                            }
-                            else
-                            {
-                                tracker.RegistrationCount++;
                             }
                         }
                         else
@@ -128,26 +131,21 @@ namespace SmartEventPlatform.EventService.Messaging
                                 messageId, eventType);
                         }
                     }
-                    else if (eventType == nameof(RegistrationDeletedEvent))
+                    else if (eventType == nameof(EventSpeakerRemovedEvent))
                     {
-                        var evt = JsonSerializer.Deserialize<RegistrationDeletedEvent>(body);
+                        var evt = JsonSerializer.Deserialize<EventSpeakerRemovedEvent>(body);
                         if (evt is not null)
                         {
-                            var tracker = await db.EventRegistrationTrackers
-                                .FirstOrDefaultAsync(t => t.EventId == evt.EventId, cancellationToken);
+                            // The speaker was removed from the event — clear the engagement
+                            var tracker = await db.SpeakerUsageTrackers
+                                .FirstOrDefaultAsync(t => t.EventSpeakerId == evt.EventSpeakerId, cancellationToken);
 
                             if (tracker is not null)
-                            {
-                                tracker.RegistrationCount--;
-                                if (tracker.RegistrationCount <= 0)
-                                    db.EventRegistrationTrackers.Remove(tracker);
-                            }
+                                db.SpeakerUsageTrackers.Remove(tracker);
                             else
-                            {
                                 _logger.LogWarning(
-                                    "RegistrationDeletedEvent received for EventId={EventId}, but tracker does not exist.",
-                                    evt.EventId);
-                            }
+                                    "EventSpeakerRemovedEvent received for EventSpeakerId={EventSpeakerId}, but SpeakerUsageTracker does not exist.",
+                                    evt.EventSpeakerId);
                         }
                         else
                         {
@@ -158,7 +156,7 @@ namespace SmartEventPlatform.EventService.Messaging
                     }
                     else
                     {
-                        // Unknown event type — log and ack without recording as processed.
+                        // Unknown event type on this queue — log and ack without recording.
                         // Not recording allows future re-evaluation if support is added later.
                         _logger.LogWarning(
                             "Unknown event type '{EventType}', MessageId={MessageId}. Acknowledging without processing.",
@@ -187,7 +185,7 @@ namespace SmartEventPlatform.EventService.Messaging
                 }
                 else
                 {
-                    // Duplicate — rollback (nothing to commit) and ack.
+                    // Duplicate — rollback and ack.
                     await tx.RollbackAsync(cancellationToken);
                     _logger.LogWarning(
                         "Duplicate message detected, skipping. MessageId={MessageId}.",
@@ -198,7 +196,7 @@ namespace SmartEventPlatform.EventService.Messaging
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing message. DeliveryTag={DeliveryTag}.", ea.DeliveryTag);
+                _logger.LogError(ex, "Error processing speaker-usage message. DeliveryTag={DeliveryTag}.", ea.DeliveryTag);
                 if (_channel is not null)
                     await _channel.BasicNackAsync(
                         ea.DeliveryTag, multiple: false, requeue: true,

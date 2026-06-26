@@ -19,14 +19,21 @@ namespace SmartEventPlatform.DirectoryService
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-            builder.Services.Configure<RabbitMqOptions>(
-                builder.Configuration.GetSection(RabbitMqOptions.SectionName));
-            builder.Services.AddHostedService<EventEventsConsumerService>();
+            // Location-usage consumer — handles EventCreatedEvent and EventDeletedEvent.
+            // Maintains LocationUsageTrackers so we know which locations are in use.
+            builder.Services.Configure<LocationUsageRabbitMqOptions>(
+                builder.Configuration.GetSection(LocationUsageRabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<LocationUsageConsumerService>();
+
+            // Speaker-usage consumer — handles EventSpeakerAddedEvent and EventSpeakerRemovedEvent.
+            // Maintains SpeakerUsageTrackers so we know which speakers have active engagements.
+            builder.Services.Configure<SpeakerUsageRabbitMqOptions>(
+                builder.Configuration.GetSection(SpeakerUsageRabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<SpeakerUsageConsumerService>();
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 
             var app = builder.Build();
@@ -39,9 +46,7 @@ namespace SmartEventPlatform.DirectoryService
             }
 
             app.UseExceptionHandler();
-
             app.UseHttpsRedirection();
-
             app.UseAuthorization();
 
             app.MapControllers();

@@ -1,4 +1,4 @@
-﻿namespace SmartEventPlatform.Contracts.Events.Integration
+﻿namespace SmartEventPlatform.Contracts.Integration
 {
     public class RegistrationCreatedEvent
     {
