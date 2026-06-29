@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="SmartEventPlatform.ApiGateway/SmartEventPlatform.ApiGateway.csproj" Id="38a0881b-a90a-47d5-9286-0c974e99a722" />
   <Project Path="SmartEventPlatform.Contracts/SmartEventPlatform.Contracts.csproj" Id="ea6f8ce1-1a05-43e3-b9d2-4b287bd0d80c" />
   <Project Path="SmartEventPlatform.DirectoryService/SmartEventPlatform.DirectoryService.csproj" Id="a5a1318f-372d-4e08-958d-c4d33a554a36" />
   <Project Path="SmartEventPlatform.EventService/SmartEventPlatform.EventService.csproj" Id="9c5319b0-a8ee-40c4-911b-39f5b4be6653" />
