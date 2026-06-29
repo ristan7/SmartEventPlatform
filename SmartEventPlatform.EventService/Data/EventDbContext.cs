@@ -19,6 +19,9 @@ namespace SmartEventPlatform.EventService.Data
         public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
         public DbSet<EventRegistrationTracker> EventRegistrationTrackers { get; set; }
 
+        // Saga: privremene rezervacije mjesta dok Saga nije završena
+        public DbSet<SagaSpotReservation> SagaSpotReservations { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -101,6 +104,21 @@ namespace SmartEventPlatform.EventService.Data
 
                 entity.Property(e => e.RegistrationCount)
                       .IsRequired();
+            });
+
+            // Saga: konfiguracija SagaSpotReservations tabele
+            modelBuilder.Entity<SagaSpotReservation>(entity =>
+            {
+                entity.ToTable("SagaSpotReservations");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.SagaId).IsRequired();
+                entity.Property(e => e.EventId).IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired();
+
+                // SagaId mora biti jedinstven - jedna Saga = jedna rezervacija
+                entity.HasIndex(e => e.SagaId).IsUnique();
+                entity.HasIndex(e => e.EventId);
             });
         }
     }

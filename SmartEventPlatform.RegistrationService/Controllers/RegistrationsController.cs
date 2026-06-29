@@ -7,6 +7,7 @@ using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.Messaging;
 using SmartEventPlatform.RegistrationService.Models;
+using SmartEventPlatform.RegistrationService.Saga;
 using System.Text.Json;
 
 namespace SmartEventPlatform.RegistrationService.Controllers;
@@ -19,6 +20,7 @@ public class RegistrationsController : ControllerBase
     private readonly IEventServiceClient _eventServiceClient;
     private readonly IRabbitMqEventQueryClient _eventQueryClient;
     private readonly IEmailQueuePublisher _emailQueuePublisher;
+    private readonly RegistrationSagaOrchestrator _sagaOrchestrator;
     private readonly ILogger<RegistrationsController> _logger;
 
     public RegistrationsController(
@@ -26,12 +28,14 @@ public class RegistrationsController : ControllerBase
         IEventServiceClient eventServiceClient,
         IRabbitMqEventQueryClient eventQueryClient,
         IEmailQueuePublisher emailQueuePublisher,
+        RegistrationSagaOrchestrator sagaOrchestrator,
         ILogger<RegistrationsController> logger)
     {
         _context = context;
         _eventServiceClient = eventServiceClient;
         _eventQueryClient = eventQueryClient;
         _emailQueuePublisher = emailQueuePublisher;
+        _sagaOrchestrator = sagaOrchestrator;
         _logger = logger;
     }
 
@@ -86,6 +90,13 @@ public class RegistrationsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Kreira novu registraciju kroz Saga Orkestraciju.
+    ///
+    /// Umjesto direktnog upisa, poziva RegistrationSagaOrchestrator koji koordinira
+    /// sve korake (RegistrationService → EventService → DirectoryService → potvrda).
+    /// Ako bilo koji korak ne uspije, kompenzacione akcije poništavaju urađeno.
+    /// </summary>
     [HttpPost]
     public async Task<ActionResult<long>> Create(RegistrationCreateUpdateDto dto)
     {
@@ -97,8 +108,7 @@ public class RegistrationsController : ControllerBase
         if (!participantExists)
             return BadRequest("Selected participant does not exist.");
 
-        // Request-Reply: umjesto HTTP poziva, event info dohvatamo putem RabbitMQ.
-        // Ako RabbitMQ ne odgovori u roku, automatski padamo na HTTP fallback.
+        // Validacija: Request-Reply prema EventService (kao i prije)
         _logger.LogInformation("Attempting Request-Reply for EventId={Id}.", dto.EventId);
 
         var mqReply = await _eventQueryClient.QueryEventInfoAsync(dto.EventId, HttpContext.RequestAborted);
@@ -123,76 +133,54 @@ public class RegistrationsController : ControllerBase
         if (await AlreadyRegistered(dto.EventId, dto.ParticipantId))
             return BadRequest("This participant is already registered for the selected event.");
 
-        if (await IsEventCapacityReached(dto.EventId, eventInfo.Capacity))
-            return BadRequest("Registration is not possible because the registration location capacity has been reached.");
-
+        // Dohvati podatke o učesniku i događaju za Sagu
         var participant = await _context.Participants
             .FirstOrDefaultAsync(p => p.ParticipantId == dto.ParticipantId);
 
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        if (participant == null)
+            return BadRequest("Selected participant does not exist.");
+
+        // Trebamo LocationId da bismo pozvali DirectoryService u Koraku 3.
+        // LocationId je pohranjen u EventService kao dio događaja.
+        // Dohvatamo ga HTTP pozivom (EventService ga vraća u EventDto).
+        EventDto? eventDetails = null;
         try
         {
-            var registration = new Registration
-            {
-                EventId = dto.EventId,
-                ParticipantId = dto.ParticipantId,
-                RegistrationDate = dto.RegistrationDate
-            };
-
-            _context.Registrations.Add(registration);
-            await _context.SaveChangesAsync();
-
-            _context.OutboxMessages.Add(new OutboxMessage
-            {
-                EventType = nameof(RegistrationCreatedEvent),
-                Payload = JsonSerializer.Serialize(new RegistrationCreatedEvent
-                {
-                    RegistrationId = registration.RegistrationId,
-                    EventId = registration.EventId,
-                    ParticipantId = registration.ParticipantId,
-                    RegistrationDate = registration.RegistrationDate
-                }),
-                CreatedAt = DateTime.UtcNow
-            });
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            // Email queuing je izvan transakcije — intentionally best-effort.
-            // Ako email ne stigne u queue, registracija ostaje sacuvana.
-            if (participant is not null)
-            {
-                try
-                {
-                    await _emailQueuePublisher.EnqueueAsync(new EmailNotificationMessage
-                    {
-                        RegistrationId = registration.RegistrationId,
-                        ParticipantFirstName = participant.FirstName,
-                        ParticipantLastName = participant.LastName,
-                        ParticipantEmail = participant.Email,
-                        EventId = dto.EventId,
-                        EventName = eventInfo.EventName,
-                        EventDateTime = DateTime.MinValue,
-                        RegistrationDate = dto.RegistrationDate
-                    }, HttpContext.RequestAborted);
-                }
-                catch (Exception emailEx)
-                {
-                    _logger.LogWarning(emailEx,
-                        "Failed to enqueue email for RegistrationId={Id}. Registration was saved.",
-                        registration.RegistrationId);
-                }
-            }
-
-            return CreatedAtAction(nameof(GetById),
-                new { id = registration.RegistrationId }, registration.RegistrationId);
+            var allEvents = await _eventServiceClient.GetAllEventsAsync();
+            eventDetails = allEvents.FirstOrDefault(e => e.EventId == dto.EventId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Greska pri kreiranju registracije.");
-            await transaction.RollbackAsync();
-            throw;
+            _logger.LogWarning(ex, "Nije uspjelo dohvatanje detalja događaja za LocationId.");
         }
+
+        long locationId = eventDetails?.LocationId ?? 0;
+
+        // ── POKRETANJE SAGE ─────────────────────────────────────────────────
+        _logger.LogInformation(
+            "Pokrećem Saga Orkestraciju za EventId={EventId}, ParticipantId={ParticipantId}.",
+            dto.EventId, dto.ParticipantId);
+
+        var sagaResult = await _sagaOrchestrator.ExecuteAsync(
+            eventId: dto.EventId,
+            participantId: dto.ParticipantId,
+            registrationDate: dto.RegistrationDate,
+            locationId: locationId,
+            eventName: eventInfo.EventName,
+            participantFirstName: participant.FirstName,
+            participantLastName: participant.LastName,
+            participantEmail: participant.Email,
+            cancellationToken: HttpContext.RequestAborted);
+
+        if (!sagaResult.Success)
+        {
+            _logger.LogWarning(
+                "Saga nije uspjela: {Error}", sagaResult.ErrorMessage);
+            return BadRequest(sagaResult.ErrorMessage ?? "Registracija nije uspjela.");
+        }
+
+        return CreatedAtAction(nameof(GetById),
+            new { id = sagaResult.RegistrationId }, sagaResult.RegistrationId);
     }
 
     [HttpPut("{id:long}")]

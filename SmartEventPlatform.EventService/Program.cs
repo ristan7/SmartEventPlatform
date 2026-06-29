@@ -43,10 +43,16 @@ namespace SmartEventPlatform.EventService
                 builder.Configuration.GetSection(ConsumerRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<RegistrationEventsConsumerService>();
 
-            // Zadatak 4 — Request-Reply server strana
             builder.Services.Configure<EventQueryRabbitMqOptions>(
                 builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<EventQueryConsumerService>();
+
+            // ── Saga Koreografija ─────────────────────────────────────────
+            builder.Services.Configure<SagaChoreographyRabbitMqOptions>(
+                builder.Configuration.GetSection(SagaChoreographyRabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<ISagaChoreographyPublisher, SagaChoreographyPublisher>();
+            builder.Services.AddHostedService<SagaChoreographyConsumerService>();
+            // ─────────────────────────────────────────────────────────────
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
