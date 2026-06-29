@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.EventService.Clients;
+using SmartEventPlatform.EventService.CQRS.Commands;
+using SmartEventPlatform.EventService.CQRS.Queries;
+using SmartEventPlatform.EventService.CQRS.Repositories;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.ErrorHandling;
 using SmartEventPlatform.EventService.Messaging;
@@ -18,6 +21,25 @@ namespace SmartEventPlatform.EventService
 
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+            // ── CQRS: Repozitoriji ────────────────────────────────────────────────
+            // Read repozitorij — koriste ga isključivo Query handleri
+            builder.Services.AddScoped<IEventReadRepository, EventReadRepository>();
+            // Write repozitorij — koriste ga isključivo Command handleri
+            builder.Services.AddScoped<IEventWriteRepository, EventWriteRepository>();
+
+            // ── CQRS: Query Handleri ──────────────────────────────────────────────
+            // Registrujemo svaki handler ručno — bez MediatR-a ili bilo koje biblioteke.
+            // Controller ih dobija kroz DI i direktno poziva Handle() metodu.
+            builder.Services.AddScoped<GetAllEventsQueryHandler>();
+            builder.Services.AddScoped<GetEventByIdQueryHandler>();
+            builder.Services.AddScoped<GetUpcomingEventsQueryHandler>();
+
+            // ── CQRS: Command Handleri ────────────────────────────────────────────
+            builder.Services.AddScoped<CreateEventCommandHandler>();
+            builder.Services.AddScoped<UpdateEventCommandHandler>();
+            builder.Services.AddScoped<DeleteEventCommandHandler>();
+            // ─────────────────────────────────────────────────────────────────────
 
             builder.Services.AddSingleton<DirectoryServiceCircuitBreaker>();
             builder.Services.AddSingleton<RegistrationServiceCircuitBreaker>();
@@ -47,12 +69,12 @@ namespace SmartEventPlatform.EventService
                 builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<EventQueryConsumerService>();
 
-            // ── Saga Koreografija ─────────────────────────────────────────
+            // ── Saga Koreografija ─────────────────────────────────────────────────
             builder.Services.Configure<SagaChoreographyRabbitMqOptions>(
                 builder.Configuration.GetSection(SagaChoreographyRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<ISagaChoreographyPublisher, SagaChoreographyPublisher>();
             builder.Services.AddHostedService<SagaChoreographyConsumerService>();
-            // ─────────────────────────────────────────────────────────────
+            // ─────────────────────────────────────────────────────────────────────
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();

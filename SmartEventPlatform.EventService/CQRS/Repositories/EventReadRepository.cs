@@ -1,0 +1,101 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.EventService.CQRS.ReadModels;
+using SmartEventPlatform.EventService.Data;
+
+namespace SmartEventPlatform.EventService.CQRS.Repositories
+{
+    public class EventReadRepository : IEventReadRepository
+    {
+        private readonly EventDbContext _context;
+
+        public EventReadRepository(EventDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<List<EventReadModel>> GetAllAsync()
+        {
+            return await _context.Events
+                .Include(e => e.EventType)
+                .Include(e => e.EventSpeakers)
+                .OrderBy(e => e.EventDateTime)
+                .Select(e => new EventReadModel
+                {
+                    EventId = e.EventId,
+                    EventName = e.EventName,
+                    Agenda = e.Agenda,
+                    EventDateTime = e.EventDateTime,
+                    DurationInMinutes = e.DurationInMinutes,
+                    RegistrationFee = e.RegistrationFee,
+                    LocationId = e.LocationId,
+                    LocationName = e.LocationNameSnapshot,
+                    LocationAddress = e.LocationAddressSnapshot,
+                    Capacity = e.LocationCapacitySnapshot,
+                    EventTypeId = e.EventTypeId,
+                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
+                    Speakers = e.EventSpeakers
+                                          .OrderBy(es => es.Time)
+                                          .Select(es => es.SpeakerFullNameSnapshot)
+                                          .ToList()
+                })
+                .ToListAsync();
+        }
+
+        public async Task<EventReadModel?> GetByIdAsync(long id)
+        {
+            return await _context.Events
+                .Include(e => e.EventType)
+                .Include(e => e.EventSpeakers)
+                .Where(e => e.EventId == id)
+                .Select(e => new EventReadModel
+                {
+                    EventId = e.EventId,
+                    EventName = e.EventName,
+                    Agenda = e.Agenda,
+                    EventDateTime = e.EventDateTime,
+                    DurationInMinutes = e.DurationInMinutes,
+                    RegistrationFee = e.RegistrationFee,
+                    LocationId = e.LocationId,
+                    LocationName = e.LocationNameSnapshot,
+                    LocationAddress = e.LocationAddressSnapshot,
+                    Capacity = e.LocationCapacitySnapshot,
+                    EventTypeId = e.EventTypeId,
+                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
+                    Speakers = e.EventSpeakers
+                                          .OrderBy(es => es.Time)
+                                          .Select(es => es.SpeakerFullNameSnapshot)
+                                          .ToList()
+                })
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<List<EventReadModel>> GetUpcomingAsync(DateTime fromDate)
+        {
+            return await _context.Events
+                .Include(e => e.EventType)
+                .Include(e => e.EventSpeakers)
+                .Where(e => e.EventDateTime >= fromDate)
+                .OrderBy(e => e.EventDateTime)
+                .Select(e => new EventReadModel
+                {
+                    EventId = e.EventId,
+                    EventName = e.EventName,
+                    Agenda = e.Agenda,
+                    EventDateTime = e.EventDateTime,
+                    DurationInMinutes = e.DurationInMinutes,
+                    RegistrationFee = e.RegistrationFee,
+                    LocationId = e.LocationId,
+                    LocationName = e.LocationNameSnapshot,
+                    LocationAddress = e.LocationAddressSnapshot,
+                    Capacity = e.LocationCapacitySnapshot,
+                    EventTypeId = e.EventTypeId,
+                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
+                    Speakers = e.EventSpeakers
+                                          .OrderBy(es => es.Time)
+                                          .Select(es => es.SpeakerFullNameSnapshot)
+                                          .ToList()
+                })
+                .ToListAsync();
+        }
+    }
+}
