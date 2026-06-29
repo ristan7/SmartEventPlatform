@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SmartEventPlatform.RegistrationService.Data;
 
@@ -11,9 +12,11 @@ using SmartEventPlatform.RegistrationService.Data;
 namespace SmartEventPlatform.RegistrationService.Migrations
 {
     [DbContext(typeof(RegistrationDbContext))]
-    partial class RegistrationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260629100713_AddSagaTables")]
+    partial class AddSagaTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
