@@ -5,6 +5,7 @@ using SmartEventPlatform.EventService.CQRS.Queries;
 using SmartEventPlatform.EventService.CQRS.Repositories;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.ErrorHandling;
+using SmartEventPlatform.EventService.EventSourcing;
 using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Resilience;
 
@@ -39,6 +40,13 @@ namespace SmartEventPlatform.EventService
             builder.Services.AddScoped<CreateEventCommandHandler>();
             builder.Services.AddScoped<UpdateEventCommandHandler>();
             builder.Services.AddScoped<DeleteEventCommandHandler>();
+            // ─────────────────────────────────────────────────────────────────────
+
+            // ── EVENT SOURCING ────────────────────────────────────────────────────
+            // EventStoreRepository je ekvivalent InMemoryDatabase iz primjera,
+            // ali koristi SQL Server za perzistenciju. Registrujemo ga kao Scoped
+            // jer zavisi od EventDbContext koji je Scoped.
+            builder.Services.AddScoped<EventStoreRepository>();
             // ─────────────────────────────────────────────────────────────────────
 
             builder.Services.AddSingleton<DirectoryServiceCircuitBreaker>();
