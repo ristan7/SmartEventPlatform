@@ -4,6 +4,7 @@ using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.ErrorHandling;
 using SmartEventPlatform.RegistrationService.Messaging;
 using SmartEventPlatform.RegistrationService.Resilience;
+using SmartEventPlatform.RegistrationService.Saga;
 
 namespace SmartEventPlatform.RegistrationService
 {
@@ -26,6 +27,16 @@ namespace SmartEventPlatform.RegistrationService
                 client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
                 client.Timeout = TimeSpan.FromSeconds(3);
             });
+
+            // Saga: HTTP klijent prema DirectoryService (Korak 3 Sage)
+            builder.Services.AddHttpClient<IDirectoryServiceClient, DirectoryServiceClient>(client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:DirectoryService"]!);
+                client.Timeout = TimeSpan.FromSeconds(5);
+            });
+
+            // Saga: Orkestrator (Scoped jer koristi DbContext koji je Scoped)
+            builder.Services.AddScoped<RegistrationSagaOrchestrator>();
 
             // Outbox za registration events prema EventService-u
             builder.Services.Configure<RabbitMqOptions>(

@@ -15,6 +15,9 @@ namespace SmartEventPlatform.RegistrationService.Data
         public DbSet<Registration> Registrations { get; set; }
         public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
+        // Saga: tabela za praćenje stanja svakog Saga procesa
+        public DbSet<SagaState> SagaStates { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -36,6 +39,12 @@ namespace SmartEventPlatform.RegistrationService.Data
                 entity.HasKey(r => r.RegistrationId);
                 entity.Property(r => r.RegistrationDate).IsRequired().HasColumnType("datetime2");
                 entity.Property(r => r.EventId).IsRequired();
+
+                // Saga: Status kolona - podrazumijevano "Confirmed" za kompatibilnost sa starim redovima
+                entity.Property(r => r.Status)
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasDefaultValue("Confirmed");
 
                 entity.HasOne(r => r.Participant)
                     .WithMany(p => p.Registrations)
@@ -62,6 +71,27 @@ namespace SmartEventPlatform.RegistrationService.Data
 
                 entity.HasIndex(e => e.CreatedAt);
                 entity.HasIndex(e => e.MessageId).IsUnique();
+            });
+
+            // Saga: konfiguracija SagaState tabele
+            modelBuilder.Entity<SagaState>(entity =>
+            {
+                entity.ToTable("SagaStates");
+                entity.HasKey(e => e.SagaId);
+
+                entity.Property(e => e.Status)
+                    .IsRequired()
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.FailureReason)
+                    .HasMaxLength(500);
+
+                entity.Property(e => e.CreatedAt).IsRequired();
+                entity.Property(e => e.UpdatedAt).IsRequired();
+
+                // Indeksi za pretragu aktivnih saga po EventId i ParticipantId
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.RegistrationId);
             });
         }
     }

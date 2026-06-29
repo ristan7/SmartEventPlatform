@@ -17,6 +17,9 @@ namespace SmartEventPlatform.DirectoryService.Data
         public DbSet<LocationUsageTracker> LocationUsageTrackers { get; set; }
         public DbSet<SpeakerUsageTracker> SpeakerUsageTrackers { get; set; }
 
+        // Saga: evidencija broja registracija po lokaciji (ažurira Saga Korak 3)
+        public DbSet<LocationRegistrationTracker> LocationRegistrationTrackers { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -71,6 +74,19 @@ namespace SmartEventPlatform.DirectoryService.Data
                       .IsRequired();
 
                 entity.HasIndex(e => e.SpeakerId);
+            });
+
+            // Saga: konfiguracija LocationRegistrationTrackers tabele
+            modelBuilder.Entity<LocationRegistrationTracker>(entity =>
+            {
+                entity.ToTable("LocationRegistrationTrackers");
+                entity.HasKey(e => e.LocationId);
+
+                entity.Property(e => e.LocationId)
+                      .ValueGeneratedNever();
+
+                entity.Property(e => e.RegistrationCount)
+                      .IsRequired();
             });
         }
     }
