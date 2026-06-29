@@ -5,17 +5,12 @@ using RabbitMQ.Client.Events;
 using SmartEventPlatform.Contracts.Integration;
 using SmartEventPlatform.DirectoryService.Data;
 using SmartEventPlatform.DirectoryService.Models;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 
 namespace SmartEventPlatform.DirectoryService.Messaging
 {
-    /// <summary>
-    /// Consumes messages from the location-usage queue.
-    /// Handles EventCreatedEvent and EventDeletedEvent to maintain LocationUsageTrackers,
-    /// which allow DirectoryService to know whether a location is still in use
-    /// without making synchronous HTTP calls to EventService.
-    /// </summary>
     public sealed class LocationUsageConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
@@ -23,6 +18,8 @@ namespace SmartEventPlatform.DirectoryService.Messaging
         private readonly ILogger<LocationUsageConsumerService> _logger;
         private IConnection? _connection;
         private IChannel? _channel;
+
+        private readonly ConcurrentDictionary<string, int> _retryCounts = new();
 
         public LocationUsageConsumerService(
             IServiceScopeFactory scopeFactory,
@@ -53,9 +50,24 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                 exchange: mq.Exchange, type: ExchangeType.Direct,
                 durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
+            await _channel.ExchangeDeclareAsync(
+                exchange: mq.DeadLetterExchange, type: ExchangeType.Direct,
+                durable: true, autoDelete: false, cancellationToken: stoppingToken);
+
             await _channel.QueueDeclareAsync(
-                queue: mq.Queue, durable: true, exclusive: false,
-                autoDelete: false, arguments: null, cancellationToken: stoppingToken);
+                queue: mq.DeadLetterQueue,
+                durable: true, exclusive: false, autoDelete: false,
+                arguments: null, cancellationToken: stoppingToken);
+
+            await _channel.QueueBindAsync(
+                queue: mq.DeadLetterQueue, exchange: mq.DeadLetterExchange,
+                routingKey: mq.RoutingKey, cancellationToken: stoppingToken);
+
+            // Isti x-dead-letter-exchange argument kao u EventService/RabbitMqPublisher.cs
+            await _channel.QueueDeclareAsync(
+                queue: mq.Queue, durable: true, exclusive: false, autoDelete: false,
+                arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", mq.DeadLetterExchange } },
+                cancellationToken: stoppingToken);
 
             await _channel.QueueBindAsync(
                 queue: mq.Queue, exchange: mq.Exchange,
@@ -73,8 +85,8 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                 consumer: consumer, cancellationToken: stoppingToken);
 
             _logger.LogInformation(
-                "LocationUsageConsumerService started. Listening on queue '{Queue}' (routing key: '{RoutingKey}').",
-                mq.Queue, mq.RoutingKey);
+                "LocationUsageConsumerService started. Queue='{Queue}', DLQ='{DLQ}', MaxRetries={Max}.",
+                mq.Queue, mq.DeadLetterQueue, mq.MaxRetryCount);
 
             try { await Task.Delay(Timeout.Infinite, stoppingToken); }
             catch (OperationCanceledException) { }
@@ -84,21 +96,16 @@ namespace SmartEventPlatform.DirectoryService.Messaging
         {
             if (_channel is null) return;
 
+            var mq = _options.Value;
+            var messageId = ea.BasicProperties.MessageId ?? ea.DeliveryTag.ToString();
+            var eventType = ea.BasicProperties.Type ?? string.Empty;
+
             try
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<DirectoryDbContext>();
-
-                var messageId = ea.BasicProperties.MessageId ?? ea.DeliveryTag.ToString();
-                var eventType = ea.BasicProperties.Type ?? string.Empty;
                 var body = Encoding.UTF8.GetString(ea.Body.ToArray());
 
-                // Transaction starts BEFORE the idempotency check.
-                // This makes the check and ProcessedMessage insert atomic.
-                // Under at-least-once delivery, if two consumer instances receive
-                // the same message concurrently, the unique constraint on MessageId
-                // ensures only one commit succeeds — the other gets DbUpdateException
-                // and requeues the message.
                 await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
 
                 var alreadyProcessed = await db.ProcessedMessages
@@ -111,96 +118,67 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                         var evt = JsonSerializer.Deserialize<EventCreatedEvent>(body);
                         if (evt is not null)
                         {
-                            // A new event is using this location — record the usage
                             var exists = await db.LocationUsageTrackers
                                 .AnyAsync(t => t.EventId == evt.EventId, cancellationToken);
-
                             if (!exists)
-                            {
                                 db.LocationUsageTrackers.Add(new LocationUsageTracker
-                                {
-                                    EventId = evt.EventId,
-                                    LocationId = evt.LocationId
-                                });
-                            }
+                                { EventId = evt.EventId, LocationId = evt.LocationId });
                         }
                         else
-                        {
-                            _logger.LogWarning(
-                                "Could not deserialize message. MessageId={MessageId}, EventType={EventType}.",
-                                messageId, eventType);
-                        }
+                            _logger.LogWarning("Could not deserialize. MessageId={Id}, EventType={T}.", messageId, eventType);
                     }
                     else if (eventType == nameof(EventDeletedEvent))
                     {
                         var evt = JsonSerializer.Deserialize<EventDeletedEvent>(body);
                         if (evt is not null)
                         {
-                            // The event was deleted — the location is no longer occupied by it
                             var tracker = await db.LocationUsageTrackers
                                 .FirstOrDefaultAsync(t => t.EventId == evt.EventId, cancellationToken);
-
                             if (tracker is not null)
                                 db.LocationUsageTrackers.Remove(tracker);
                             else
-                                _logger.LogWarning(
-                                    "EventDeletedEvent received for EventId={EventId}, but LocationUsageTracker does not exist.",
-                                    evt.EventId);
+                                _logger.LogWarning("LocationUsageTracker not found. EventId={Id}.", evt.EventId);
                         }
                         else
-                        {
-                            _logger.LogWarning(
-                                "Could not deserialize message. MessageId={MessageId}, EventType={EventType}.",
-                                messageId, eventType);
-                        }
+                            _logger.LogWarning("Could not deserialize. MessageId={Id}, EventType={T}.", messageId, eventType);
                     }
                     else
                     {
-                        // Unknown event type on this queue — log and ack without recording.
-                        // Not recording allows future re-evaluation if support is added later.
-                        _logger.LogWarning(
-                            "Unknown event type '{EventType}', MessageId={MessageId}. Acknowledging without processing.",
-                            eventType, messageId);
-
+                        _logger.LogWarning("Unknown type '{T}', MessageId={Id}. Acking.", eventType, messageId);
                         await tx.RollbackAsync(cancellationToken);
                         await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: cancellationToken);
                         return;
                     }
 
-                    // ProcessedMessage is inserted ONLY for successfully handled messages.
-                    // This prevents duplicate processing under at-least-once delivery.
                     db.ProcessedMessages.Add(new ProcessedMessage
-                    {
-                        MessageId = messageId,
-                        EventType = eventType,
-                        ProcessedAtUtc = DateTime.UtcNow
-                    });
+                    { MessageId = messageId, EventType = eventType, ProcessedAtUtc = DateTime.UtcNow });
 
                     await db.SaveChangesAsync(cancellationToken);
                     await tx.CommitAsync(cancellationToken);
-
-                    _logger.LogInformation(
-                        "Message processed successfully. EventType={EventType}, MessageId={MessageId}.",
-                        eventType, messageId);
+                    _logger.LogInformation("Processed. EventType={T}, MessageId={Id}.", eventType, messageId);
                 }
                 else
                 {
-                    // Duplicate — rollback and ack.
                     await tx.RollbackAsync(cancellationToken);
-                    _logger.LogWarning(
-                        "Duplicate message detected, skipping. MessageId={MessageId}.",
-                        messageId);
+                    _logger.LogWarning("Duplicate, skipping. MessageId={Id}.", messageId);
                 }
 
+                _retryCounts.TryRemove(messageId, out _);
                 await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing location-usage message. DeliveryTag={DeliveryTag}.", ea.DeliveryTag);
-                if (_channel is not null)
-                    await _channel.BasicNackAsync(
-                        ea.DeliveryTag, multiple: false, requeue: true,
-                        cancellationToken: cancellationToken);
+                var retryCount = _retryCounts.AddOrUpdate(messageId, 1, (_, old) => old + 1);
+                _logger.LogError(ex, "Error. MessageId={Id}, Attempt={N}/{Max}.", messageId, retryCount, mq.MaxRetryCount);
+
+                if (retryCount >= mq.MaxRetryCount)
+                {
+                    _retryCounts.TryRemove(messageId, out _);
+                    _logger.LogWarning("Max retries exceeded, dead-lettering. MessageId={Id}.", messageId);
+                    await _channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: cancellationToken);
+                }
+                else
+                    await _channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true, cancellationToken: cancellationToken);
             }
         }
 

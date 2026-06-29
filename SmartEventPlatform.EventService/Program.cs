@@ -1,4 +1,3 @@
-
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
@@ -14,10 +13,8 @@ namespace SmartEventPlatform.EventService
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
             builder.Services.AddDbContext<EventDbContext>(options =>
-                    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -46,14 +43,17 @@ namespace SmartEventPlatform.EventService
                 builder.Configuration.GetSection(ConsumerRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<RegistrationEventsConsumerService>();
 
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+            // Zadatak 4 — Request-Reply server strana
+            builder.Services.Configure<EventQueryRabbitMqOptions>(
+                builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<EventQueryConsumerService>();
+
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -62,12 +62,8 @@ namespace SmartEventPlatform.EventService
 
             app.UseExceptionHandler();
             app.UseHttpsRedirection();
-
             app.UseAuthorization();
-
-
             app.MapControllers();
-
             app.Run();
         }
     }

@@ -36,8 +36,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
             if (_channel is null)
                 throw new InvalidOperationException("RabbitMQ channel is not initialized.");
 
-            var body = Encoding.UTF8.GetBytes(payload);
-
             var properties = new BasicProperties
             {
                 Persistent = true,
@@ -47,11 +45,9 @@ namespace SmartEventPlatform.RegistrationService.Messaging
             };
 
             await _channel.BasicPublishAsync(
-                exchange: _options.Exchange,
-                routingKey: _options.RoutingKey,
-                mandatory: true,
-                basicProperties: properties,
-                body: body,
+                exchange: _options.Exchange, routingKey: _options.RoutingKey,
+                mandatory: true, basicProperties: properties,
+                body: Encoding.UTF8.GetBytes(payload),
                 cancellationToken: cancellationToken);
         }
 
@@ -68,30 +64,26 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                 _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
                 await _channel.ExchangeDeclareAsync(
-                    exchange: _options.Exchange,
-                    type: ExchangeType.Direct,
-                    durable: true,
-                    autoDelete: false,
-                    cancellationToken: cancellationToken);
+                    exchange: _options.Exchange, type: ExchangeType.Direct,
+                    durable: true, autoDelete: false, cancellationToken: cancellationToken);
+
+                // DLX deklarisan i ovdje jer publisher takodjer kreira queue.
+                // Konzistentnost argumenata je obavezna na obje strane.
+                await _channel.ExchangeDeclareAsync(
+                    exchange: _options.DeadLetterExchange, type: ExchangeType.Direct,
+                    durable: true, autoDelete: false, cancellationToken: cancellationToken);
 
                 await _channel.QueueDeclareAsync(
-                    queue: _options.Queue,
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null,
+                    queue: _options.Queue, durable: true,
+                    exclusive: false, autoDelete: false,
+                    arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", _options.DeadLetterExchange } },
                     cancellationToken: cancellationToken);
 
                 await _channel.QueueBindAsync(
-                    queue: _options.Queue,
-                    exchange: _options.Exchange,
-                    routingKey: _options.RoutingKey,
-                    cancellationToken: cancellationToken);
+                    queue: _options.Queue, exchange: _options.Exchange,
+                    routingKey: _options.RoutingKey, cancellationToken: cancellationToken);
             }
-            finally
-            {
-                _initLock.Release();
-            }
+            finally { _initLock.Release(); }
         }
 
         public async ValueTask DisposeAsync()

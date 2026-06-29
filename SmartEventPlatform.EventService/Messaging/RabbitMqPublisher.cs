@@ -6,16 +6,9 @@ namespace SmartEventPlatform.EventService.Messaging
 {
     public interface IRabbitMqPublisher
     {
-        /// <summary>
-        /// Publishes a message to the configured exchange using the supplied routing key.
-        /// The routing key determines which queue the message is delivered to.
-        /// </summary>
         Task PublishAsync(
-            string payload,
-            string messageId,
-            string eventType,
-            string routingKey,
-            CancellationToken cancellationToken);
+            string payload, string messageId, string eventType,
+            string routingKey, CancellationToken cancellationToken);
     }
 
     public sealed class RabbitMqPublisher : IRabbitMqPublisher, IAsyncDisposable
@@ -39,18 +32,13 @@ namespace SmartEventPlatform.EventService.Messaging
         }
 
         public async Task PublishAsync(
-            string payload,
-            string messageId,
-            string eventType,
-            string routingKey,
-            CancellationToken cancellationToken)
+            string payload, string messageId, string eventType,
+            string routingKey, CancellationToken cancellationToken)
         {
             await EnsureInitializedAsync(cancellationToken);
 
             if (_channel is null)
                 throw new InvalidOperationException("RabbitMQ channel is not initialized.");
-
-            var body = Encoding.UTF8.GetBytes(payload);
 
             var properties = new BasicProperties
             {
@@ -61,17 +49,15 @@ namespace SmartEventPlatform.EventService.Messaging
             };
 
             await _channel.BasicPublishAsync(
-                exchange: _options.Exchange,
-                routingKey: routingKey,
-                mandatory: true,
-                basicProperties: properties,
-                body: body,
+                exchange: _options.Exchange, routingKey: routingKey,
+                mandatory: true, basicProperties: properties,
+                body: Encoding.UTF8.GetBytes(payload),
                 cancellationToken: cancellationToken);
         }
 
         /// <summary>
-        /// Opens the connection once and declares the exchange + both queues with their bindings.
-        /// All subsequent publish calls reuse the same channel.
+        /// Publisher deklarise iste queues kao i consumer strana (DirectoryService).
+        /// Obje strane MORAJU imati identicne argumente — razlika uzrokuje PRECONDITION_FAILED.
         /// </summary>
         private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
         {
@@ -85,48 +71,51 @@ namespace SmartEventPlatform.EventService.Messaging
                 _connection = await _factory.CreateConnectionAsync(cancellationToken);
                 _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
-                // Declare the shared exchange
                 await _channel.ExchangeDeclareAsync(
-                    exchange: _options.Exchange,
-                    type: ExchangeType.Direct,
-                    durable: true,
-                    autoDelete: false,
-                    cancellationToken: cancellationToken);
+                    exchange: _options.Exchange, type: ExchangeType.Direct,
+                    durable: true, autoDelete: false, cancellationToken: cancellationToken);
 
-                // Declare location-usage queue and bind it
+                await _channel.ExchangeDeclareAsync(
+                    exchange: _options.DeadLetterExchange, type: ExchangeType.Direct,
+                    durable: true, autoDelete: false, cancellationToken: cancellationToken);
+
+                // -- Location usage --
                 await _channel.QueueDeclareAsync(
-                    queue: _options.LocationUsageQueue,
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null,
-                    cancellationToken: cancellationToken);
-
+                    queue: _options.LocationUsageDlq,
+                    durable: true, exclusive: false, autoDelete: false,
+                    arguments: null, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(
-                    queue: _options.LocationUsageQueue,
-                    exchange: _options.Exchange,
-                    routingKey: _options.LocationUsageRoutingKey,
-                    cancellationToken: cancellationToken);
+                    queue: _options.LocationUsageDlq, exchange: _options.DeadLetterExchange,
+                    routingKey: _options.LocationUsageRoutingKey, cancellationToken: cancellationToken);
 
-                // Declare speaker-usage queue and bind it
                 await _channel.QueueDeclareAsync(
-                    queue: _options.SpeakerUsageQueue,
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    arguments: null,
+                    queue: _options.LocationUsageQueue, durable: true,
+                    exclusive: false, autoDelete: false,
+                    arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", _options.DeadLetterExchange } },
                     cancellationToken: cancellationToken);
-
                 await _channel.QueueBindAsync(
-                    queue: _options.SpeakerUsageQueue,
-                    exchange: _options.Exchange,
-                    routingKey: _options.SpeakerUsageRoutingKey,
+                    queue: _options.LocationUsageQueue, exchange: _options.Exchange,
+                    routingKey: _options.LocationUsageRoutingKey, cancellationToken: cancellationToken);
+
+                // -- Speaker usage --
+                await _channel.QueueDeclareAsync(
+                    queue: _options.SpeakerUsageDlq,
+                    durable: true, exclusive: false, autoDelete: false,
+                    arguments: null, cancellationToken: cancellationToken);
+                await _channel.QueueBindAsync(
+                    queue: _options.SpeakerUsageDlq, exchange: _options.DeadLetterExchange,
+                    routingKey: _options.SpeakerUsageRoutingKey, cancellationToken: cancellationToken);
+
+                await _channel.QueueDeclareAsync(
+                    queue: _options.SpeakerUsageQueue, durable: true,
+                    exclusive: false, autoDelete: false,
+                    arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", _options.DeadLetterExchange } },
                     cancellationToken: cancellationToken);
+                await _channel.QueueBindAsync(
+                    queue: _options.SpeakerUsageQueue, exchange: _options.Exchange,
+                    routingKey: _options.SpeakerUsageRoutingKey, cancellationToken: cancellationToken);
             }
-            finally
-            {
-                _initLock.Release();
-            }
+            finally { _initLock.Release(); }
         }
 
         public async ValueTask DisposeAsync()

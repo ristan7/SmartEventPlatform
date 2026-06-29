@@ -1,9 +1,5 @@
 ﻿namespace SmartEventPlatform.DirectoryService.Messaging
 {
-    /// <summary>
-    /// Configuration for the consumer that processes location-usage events
-    /// (EventCreatedEvent and EventDeletedEvent) published by EventService.
-    /// </summary>
     public class LocationUsageRabbitMqOptions
     {
         public const string SectionName = "RabbitMqLocationUsage";
@@ -16,5 +12,9 @@
         public string Queue { get; set; } = "directory.location-usage.queue";
         public string RoutingKey { get; set; } = "event.location-usage.changed";
         public ushort PrefetchCount { get; set; } = 1;
+
+        public string DeadLetterExchange { get; set; } = "smart-event.dlx";
+        public string DeadLetterQueue { get; set; } = "directory.location-usage.dlq";
+        public int MaxRetryCount { get; set; } = 10;
     }
 }

@@ -19,14 +19,11 @@ namespace SmartEventPlatform.DirectoryService
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-            // Location-usage consumer — handles EventCreatedEvent and EventDeletedEvent.
-            // Maintains LocationUsageTrackers so we know which locations are in use.
+            
             builder.Services.Configure<LocationUsageRabbitMqOptions>(
                 builder.Configuration.GetSection(LocationUsageRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<LocationUsageConsumerService>();
 
-            // Speaker-usage consumer — handles EventSpeakerAddedEvent and EventSpeakerRemovedEvent.
-            // Maintains SpeakerUsageTrackers so we know which speakers have active engagements.
             builder.Services.Configure<SpeakerUsageRabbitMqOptions>(
                 builder.Configuration.GetSection(SpeakerUsageRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<SpeakerUsageConsumerService>();

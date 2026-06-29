@@ -5,6 +5,7 @@ using RabbitMQ.Client.Events;
 using SmartEventPlatform.Contracts.Integration;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.Models;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 
@@ -17,6 +18,10 @@ namespace SmartEventPlatform.EventService.Messaging
         private readonly ILogger<RegistrationEventsConsumerService> _logger;
         private IConnection? _connection;
         private IChannel? _channel;
+
+        // Prati broj neuspjesnih pokusaja po MessageId-u.
+        // Nakon MaxRetryCount -> BasicNack(requeue: false) -> DLQ.
+        private readonly ConcurrentDictionary<string, int> _retryCounts = new();
 
         public RegistrationEventsConsumerService(
             IServiceScopeFactory scopeFactory,
@@ -47,9 +52,32 @@ namespace SmartEventPlatform.EventService.Messaging
                 exchange: mq.Exchange, type: ExchangeType.Direct,
                 durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
+            // Dead Letter Exchange
+            await _channel.ExchangeDeclareAsync(
+                exchange: mq.DeadLetterExchange, type: ExchangeType.Direct,
+                durable: true, autoDelete: false, cancellationToken: stoppingToken);
+
+            // Dead Letter Queue
+            await _channel.QueueDeclareAsync(
+                queue: mq.DeadLetterQueue,
+                durable: true, exclusive: false, autoDelete: false,
+                arguments: null, cancellationToken: stoppingToken);
+
+            await _channel.QueueBindAsync(
+                queue: mq.DeadLetterQueue, exchange: mq.DeadLetterExchange,
+                routingKey: mq.RoutingKey, cancellationToken: stoppingToken);
+
+            // Glavni queue s x-dead-letter-exchange argumentom.
+            // VAZNO: isti argument mora biti i u RegistrationService/RabbitMqPublisher.cs
+            // jer oba deklarisu isti queue — RabbitMQ zahtjeva konzistentnost.
+            var queueArgs = new Dictionary<string, object?>
+            {
+                { "x-dead-letter-exchange", mq.DeadLetterExchange }
+            };
+
             await _channel.QueueDeclareAsync(
                 queue: mq.Queue, durable: true, exclusive: false,
-                autoDelete: false, arguments: null, cancellationToken: stoppingToken);
+                autoDelete: false, arguments: queueArgs, cancellationToken: stoppingToken);
 
             await _channel.QueueBindAsync(
                 queue: mq.Queue, exchange: mq.Exchange,
@@ -67,8 +95,8 @@ namespace SmartEventPlatform.EventService.Messaging
                 consumer: consumer, cancellationToken: stoppingToken);
 
             _logger.LogInformation(
-                "RegistrationEventsConsumerService started. Listening on queue '{Queue}'.",
-                mq.Queue);
+                "RegistrationEventsConsumerService started. Queue='{Queue}', DLQ='{DLQ}', MaxRetries={Max}.",
+                mq.Queue, mq.DeadLetterQueue, mq.MaxRetryCount);
 
             try { await Task.Delay(Timeout.Infinite, stoppingToken); }
             catch (OperationCanceledException) { }
@@ -78,21 +106,16 @@ namespace SmartEventPlatform.EventService.Messaging
         {
             if (_channel is null) return;
 
+            var mq = _options.Value;
+            var messageId = ea.BasicProperties.MessageId ?? ea.DeliveryTag.ToString();
+            var eventType = ea.BasicProperties.Type ?? string.Empty;
+
             try
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<EventDbContext>();
-
-                var messageId = ea.BasicProperties.MessageId ?? ea.DeliveryTag.ToString();
-                var eventType = ea.BasicProperties.Type ?? string.Empty;
                 var body = Encoding.UTF8.GetString(ea.Body.ToArray());
 
-                // Transaction starts BEFORE the idempotency check.
-                // This makes the check and ProcessedMessage insert atomic.
-                // Under at-least-once delivery, if two consumer instances receive
-                // the same message concurrently, the unique constraint on MessageId
-                // ensures only one commit succeeds — the other gets DbUpdateException
-                // and requeues the message.
                 await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
 
                 var alreadyProcessed = await db.ProcessedMessages
@@ -109,24 +132,13 @@ namespace SmartEventPlatform.EventService.Messaging
                                 .FirstOrDefaultAsync(t => t.EventId == evt.EventId, cancellationToken);
 
                             if (tracker is null)
-                            {
                                 db.EventRegistrationTrackers.Add(new EventRegistrationTracker
-                                {
-                                    EventId = evt.EventId,
-                                    RegistrationCount = 1
-                                });
-                            }
+                                { EventId = evt.EventId, RegistrationCount = 1 });
                             else
-                            {
                                 tracker.RegistrationCount++;
-                            }
                         }
                         else
-                        {
-                            _logger.LogWarning(
-                                "Could not deserialize message. MessageId={MessageId}, EventType={EventType}.",
-                                messageId, eventType);
-                        }
+                            _logger.LogWarning("Could not deserialize. MessageId={Id}, EventType={T}.", messageId, eventType);
                     }
                     else if (eventType == nameof(RegistrationDeletedEvent))
                     {
@@ -143,34 +155,19 @@ namespace SmartEventPlatform.EventService.Messaging
                                     db.EventRegistrationTrackers.Remove(tracker);
                             }
                             else
-                            {
-                                _logger.LogWarning(
-                                    "RegistrationDeletedEvent received for EventId={EventId}, but tracker does not exist.",
-                                    evt.EventId);
-                            }
+                                _logger.LogWarning("Tracker not found for EventId={Id}.", evt.EventId);
                         }
                         else
-                        {
-                            _logger.LogWarning(
-                                "Could not deserialize message. MessageId={MessageId}, EventType={EventType}.",
-                                messageId, eventType);
-                        }
+                            _logger.LogWarning("Could not deserialize. MessageId={Id}, EventType={T}.", messageId, eventType);
                     }
                     else
                     {
-                        // Unknown event type — log and ack without recording as processed.
-                        // Not recording allows future re-evaluation if support is added later.
-                        _logger.LogWarning(
-                            "Unknown event type '{EventType}', MessageId={MessageId}. Acknowledging without processing.",
-                            eventType, messageId);
-
+                        _logger.LogWarning("Unknown event type '{T}', MessageId={Id}. Acking.", eventType, messageId);
                         await tx.RollbackAsync(cancellationToken);
                         await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: cancellationToken);
                         return;
                     }
 
-                    // ProcessedMessage is inserted ONLY for successfully handled messages.
-                    // This prevents duplicate processing under at-least-once delivery.
                     db.ProcessedMessages.Add(new ProcessedMessage
                     {
                         MessageId = messageId,
@@ -181,28 +178,39 @@ namespace SmartEventPlatform.EventService.Messaging
                     await db.SaveChangesAsync(cancellationToken);
                     await tx.CommitAsync(cancellationToken);
 
-                    _logger.LogInformation(
-                        "Message processed successfully. EventType={EventType}, MessageId={MessageId}.",
-                        eventType, messageId);
+                    _logger.LogInformation("Processed. EventType={T}, MessageId={Id}.", eventType, messageId);
                 }
                 else
                 {
-                    // Duplicate — rollback (nothing to commit) and ack.
                     await tx.RollbackAsync(cancellationToken);
-                    _logger.LogWarning(
-                        "Duplicate message detected, skipping. MessageId={MessageId}.",
-                        messageId);
+                    _logger.LogWarning("Duplicate, skipping. MessageId={Id}.", messageId);
                 }
 
+                _retryCounts.TryRemove(messageId, out _);
                 await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing message. DeliveryTag={DeliveryTag}.", ea.DeliveryTag);
-                if (_channel is not null)
+                var retryCount = _retryCounts.AddOrUpdate(messageId, 1, (_, old) => old + 1);
+
+                _logger.LogError(ex,
+                    "Error processing. MessageId={Id}, EventType={T}, Attempt={N}/{Max}.",
+                    messageId, eventType, retryCount, mq.MaxRetryCount);
+
+                if (retryCount >= mq.MaxRetryCount)
+                {
+                    _retryCounts.TryRemove(messageId, out _);
+                    _logger.LogWarning("Max retries exceeded, dead-lettering. MessageId={Id}.", messageId);
+                    await _channel.BasicNackAsync(
+                        ea.DeliveryTag, multiple: false, requeue: false,
+                        cancellationToken: cancellationToken);
+                }
+                else
+                {
                     await _channel.BasicNackAsync(
                         ea.DeliveryTag, multiple: false, requeue: true,
                         cancellationToken: cancellationToken);
+                }
             }
         }
 

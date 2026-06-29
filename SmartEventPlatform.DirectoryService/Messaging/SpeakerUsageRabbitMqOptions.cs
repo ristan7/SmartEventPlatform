@@ -1,9 +1,5 @@
 ﻿namespace SmartEventPlatform.DirectoryService.Messaging
 {
-    /// <summary>
-    /// Configuration for the consumer that processes speaker-usage events
-    /// (EventSpeakerAddedEvent and EventSpeakerRemovedEvent) published by EventService.
-    /// </summary>
     public class SpeakerUsageRabbitMqOptions
     {
         public const string SectionName = "RabbitMqSpeakerUsage";
@@ -16,5 +12,9 @@
         public string Queue { get; set; } = "directory.speaker-usage.queue";
         public string RoutingKey { get; set; } = "event.speaker-usage.changed";
         public ushort PrefetchCount { get; set; } = 1;
+
+        public string DeadLetterExchange { get; set; } = "smart-event.dlx";
+        public string DeadLetterQueue { get; set; } = "directory.speaker-usage.dlq";
+        public int MaxRetryCount { get; set; } = 10;
     }
 }

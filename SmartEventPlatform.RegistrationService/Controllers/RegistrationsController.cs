@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Polly;
 using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.Contracts.Integration;
 using SmartEventPlatform.Contracts.Registrations;
@@ -18,19 +17,27 @@ public class RegistrationsController : ControllerBase
 {
     private readonly RegistrationDbContext _context;
     private readonly IEventServiceClient _eventServiceClient;
+    private readonly IRabbitMqEventQueryClient _eventQueryClient;
+    private readonly IEmailQueuePublisher _emailQueuePublisher;
     private readonly ILogger<RegistrationsController> _logger;
 
-    public RegistrationsController(RegistrationDbContext context, IEventServiceClient eventServiceClient, ILogger<RegistrationsController> logger)
+    public RegistrationsController(
+        RegistrationDbContext context,
+        IEventServiceClient eventServiceClient,
+        IRabbitMqEventQueryClient eventQueryClient,
+        IEmailQueuePublisher emailQueuePublisher,
+        ILogger<RegistrationsController> logger)
     {
         _context = context;
         _eventServiceClient = eventServiceClient;
+        _eventQueryClient = eventQueryClient;
+        _emailQueuePublisher = emailQueuePublisher;
         _logger = logger;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<RegistrationDto>>> GetAll()
     {
-
         var events = await _eventServiceClient.GetAllEventsAsync();
 
         var registrations = await _context.Registrations
@@ -38,28 +45,21 @@ public class RegistrationsController : ControllerBase
             .OrderBy(r => r.RegistrationDate)
             .ToListAsync();
 
-        var result = registrations.Select(r =>
+        return Ok(registrations.Select(r =>
         {
-            var eventDto = events.FirstOrDefault(e => e.EventId == r.EventId);
-
+            var e = events.FirstOrDefault(x => x.EventId == r.EventId);
             return new RegistrationDto
             {
                 RegistrationId = r.RegistrationId,
                 RegistrationDate = r.RegistrationDate,
-
                 EventId = r.EventId,
-                EventName = eventDto?.EventName ?? $"Event #{r.EventId}",
-
+                EventName = e?.EventName ?? $"Event #{r.EventId}",
                 ParticipantId = r.ParticipantId,
                 ParticipantFullName = r.Participant != null
-                    ? r.Participant.FirstName + " " + r.Participant.LastName
-                    : string.Empty,
+                    ? r.Participant.FirstName + " " + r.Participant.LastName : string.Empty,
                 ParticipantEmail = r.Participant?.Email ?? string.Empty
             };
-        }).ToList();
-
-        return Ok(result);
-
+        }).ToList());
     }
 
     [HttpGet("{id:long}")]
@@ -69,71 +69,67 @@ public class RegistrationsController : ControllerBase
             .Include(r => r.Participant)
             .FirstOrDefaultAsync(r => r.RegistrationId == id);
 
-        if (registration == null)
-        {
-            return NotFound();
-        }
-
+        if (registration == null) return NotFound();
 
         var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(registration.EventId);
 
-        var dto = new RegistrationDto
+        return Ok(new RegistrationDto
         {
             RegistrationId = registration.RegistrationId,
             RegistrationDate = registration.RegistrationDate,
-
             EventId = registration.EventId,
             EventName = eventInfo.EventName,
-
             ParticipantId = registration.ParticipantId,
             ParticipantFullName = registration.Participant != null
-                    ? registration.Participant.FirstName + " " + registration.Participant.LastName
-                    : string.Empty,
+                ? registration.Participant.FirstName + " " + registration.Participant.LastName : string.Empty,
             ParticipantEmail = registration.Participant?.Email ?? string.Empty
-        };
-
-        return Ok(dto);
+        });
     }
 
     [HttpPost]
     public async Task<ActionResult<long>> Create(RegistrationCreateUpdateDto dto)
     {
         if (!ModelState.IsValid)
-        {
             return ValidationProblem(ModelState);
-        }
 
         var participantExists = await _context.Participants
             .AnyAsync(p => p.ParticipantId == dto.ParticipantId);
-
         if (!participantExists)
-        {
             return BadRequest("Selected participant does not exist.");
-        }
 
-        var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(dto.EventId);
+        // Request-Reply: umjesto HTTP poziva, event info dohvatamo putem RabbitMQ.
+        // Ako RabbitMQ ne odgovori u roku, automatski padamo na HTTP fallback.
+        _logger.LogInformation("Attempting Request-Reply for EventId={Id}.", dto.EventId);
+
+        var mqReply = await _eventQueryClient.QueryEventInfoAsync(dto.EventId, HttpContext.RequestAborted);
+
+        EventRegistrationInfoDto eventInfo;
+        if (mqReply is not null)
+        {
+            _logger.LogInformation(
+                "Event info via RabbitMQ. EventId={Id}, Exists={E}.", dto.EventId, mqReply.Exists);
+            eventInfo = new EventRegistrationInfoDto
+            { EventName = mqReply.EventName, Exists = mqReply.Exists, Capacity = mqReply.Capacity };
+        }
+        else
+        {
+            _logger.LogWarning("RabbitMQ timeout, falling back to HTTP for EventId={Id}.", dto.EventId);
+            eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(dto.EventId);
+        }
 
         if (!eventInfo.Exists)
-        {
             return BadRequest("Selected event does not exist.");
-        }
 
-        var alreadyRegistered = await AlreadyRegistered(dto.EventId, dto.ParticipantId);
-
-        if (alreadyRegistered)
-        {
+        if (await AlreadyRegistered(dto.EventId, dto.ParticipantId))
             return BadRequest("This participant is already registered for the selected event.");
-        }
 
-        var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity);
-
-        if (capacityReached)
-        {
+        if (await IsEventCapacityReached(dto.EventId, eventInfo.Capacity))
             return BadRequest("Registration is not possible because the registration location capacity has been reached.");
-        }
+
+        var participant = await _context.Participants
+            .FirstOrDefaultAsync(p => p.ParticipantId == dto.ParticipantId);
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
-
         try
         {
             var registration = new Registration
@@ -146,7 +142,6 @@ public class RegistrationsController : ControllerBase
             _context.Registrations.Add(registration);
             await _context.SaveChangesAsync();
 
-            // Outbox — u istoj transakciji
             _context.OutboxMessages.Add(new OutboxMessage
             {
                 EventType = nameof(RegistrationCreatedEvent),
@@ -163,7 +158,34 @@ public class RegistrationsController : ControllerBase
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = registration.RegistrationId }, registration.RegistrationId);
+            // Email queuing je izvan transakcije — intentionally best-effort.
+            // Ako email ne stigne u queue, registracija ostaje sacuvana.
+            if (participant is not null)
+            {
+                try
+                {
+                    await _emailQueuePublisher.EnqueueAsync(new EmailNotificationMessage
+                    {
+                        RegistrationId = registration.RegistrationId,
+                        ParticipantFirstName = participant.FirstName,
+                        ParticipantLastName = participant.LastName,
+                        ParticipantEmail = participant.Email,
+                        EventId = dto.EventId,
+                        EventName = eventInfo.EventName,
+                        EventDateTime = DateTime.MinValue,
+                        RegistrationDate = dto.RegistrationDate
+                    }, HttpContext.RequestAborted);
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogWarning(emailEx,
+                        "Failed to enqueue email for RegistrationId={Id}. Registration was saved.",
+                        registration.RegistrationId);
+                }
+            }
+
+            return CreatedAtAction(nameof(GetById),
+                new { id = registration.RegistrationId }, registration.RegistrationId);
         }
         catch (Exception ex)
         {
@@ -176,57 +198,31 @@ public class RegistrationsController : ControllerBase
     [HttpPut("{id:long}")]
     public async Task<IActionResult> Update(long id, RegistrationCreateUpdateDto dto)
     {
-        if (!ModelState.IsValid)
-        {
-            return ValidationProblem(ModelState);
-        }
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
 
         var registration = await _context.Registrations.FindAsync(id);
+        if (registration == null) return NotFound();
 
-        if (registration == null)
-        {
-            return NotFound();
-        }
-
-        var participantExists = await _context.Participants
-            .AnyAsync(p => p.ParticipantId == dto.ParticipantId);
-
-        if (!participantExists)
-        {
-            return BadRequest("Selected participant does not exist.");
-        }
+        var participantExists = await _context.Participants.AnyAsync(p => p.ParticipantId == dto.ParticipantId);
+        if (!participantExists) return BadRequest("Selected participant does not exist.");
 
         var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(dto.EventId);
+        if (!eventInfo.Exists) return BadRequest("Selected event does not exist.");
 
-        if (!eventInfo.Exists)
-        {
-            return BadRequest("Selected event does not exist.");
-        }
-
-        var duplicateRegistration = await DuplicateRegistrationExistsAsync(dto.EventId, dto.ParticipantId, id);
-
-        if (duplicateRegistration)
-        {
+        if (await DuplicateRegistrationExistsAsync(dto.EventId, dto.ParticipantId, id))
             return BadRequest("This participant is already registered for the selected event.");
-        }
 
-        var capacityReached = await IsEventCapacityReached(dto.EventId, eventInfo.Capacity, id);
-
-        if (capacityReached)
-        {
+        if (await IsEventCapacityReached(dto.EventId, eventInfo.Capacity, id))
             return BadRequest("Registration is not possible because the event location capacity has been reached.");
-        }
 
         var oldEventId = registration.EventId;
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
-
         try
         {
             registration.EventId = dto.EventId;
             registration.ParticipantId = dto.ParticipantId;
             registration.RegistrationDate = dto.RegistrationDate;
-
             await _context.SaveChangesAsync();
 
             if (oldEventId != dto.EventId)
@@ -235,13 +231,9 @@ public class RegistrationsController : ControllerBase
                 {
                     EventType = nameof(RegistrationDeletedEvent),
                     Payload = JsonSerializer.Serialize(new RegistrationDeletedEvent
-                    {
-                        RegistrationId = registration.RegistrationId,
-                        EventId = oldEventId
-                    }),
+                    { RegistrationId = registration.RegistrationId, EventId = oldEventId }),
                     CreatedAt = DateTime.UtcNow
                 });
-
                 _context.OutboxMessages.Add(new OutboxMessage
                 {
                     EventType = nameof(RegistrationCreatedEvent),
@@ -254,23 +246,16 @@ public class RegistrationsController : ControllerBase
                     }),
                     CreatedAt = DateTime.UtcNow.AddMilliseconds(1)
                 });
-
                 await _context.SaveChangesAsync();
             }
 
             await transaction.CommitAsync();
-
             return NoContent();
         }
         catch (DbUpdateConcurrencyException)
         {
             await transaction.RollbackAsync();
-
-            if (!await RegistrationExistsAsync(id))
-            {
-                return NotFound();
-            }
-
+            if (!await RegistrationExistsAsync(id)) return NotFound();
             throw;
         }
         catch (Exception ex)
@@ -288,62 +273,42 @@ public class RegistrationsController : ControllerBase
             .Include(r => r.Participant)
             .FirstOrDefaultAsync(r => r.RegistrationId == id);
 
-        if (registration == null)
-        {
-            return NotFound();
-        }
-
+        if (registration == null) return NotFound();
 
         var eventInfo = await _eventServiceClient.GetRegistrationInfoAsync(registration.EventId);
 
-        var dto = new RegistrationDto
+        return Ok(new RegistrationDto
         {
             RegistrationId = registration.RegistrationId,
             RegistrationDate = registration.RegistrationDate,
-
             EventId = registration.EventId,
             EventName = eventInfo.EventName,
-
             ParticipantId = registration.ParticipantId,
             ParticipantFullName = registration.Participant != null
-                    ? registration.Participant.FirstName + " " + registration.Participant.LastName
-                    : string.Empty,
+                ? registration.Participant.FirstName + " " + registration.Participant.LastName : string.Empty,
             ParticipantEmail = registration.Participant?.Email ?? string.Empty
-        };
-
-        return Ok(dto);
+        });
     }
 
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(long id)
     {
         var registration = await _context.Registrations.FindAsync(id);
-
-        if (registration == null)
-        {
-            return NotFound();
-        }
+        if (registration == null) return NotFound();
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
-
         try
         {
-            // Outbox — u istoj transakciji kao i brisanje
             _context.OutboxMessages.Add(new OutboxMessage
             {
                 EventType = nameof(RegistrationDeletedEvent),
                 Payload = JsonSerializer.Serialize(new RegistrationDeletedEvent
-                {
-                    RegistrationId = registration.RegistrationId,
-                    EventId = registration.EventId
-                }),
+                { RegistrationId = registration.RegistrationId, EventId = registration.EventId }),
                 CreatedAt = DateTime.UtcNow
             });
-
             _context.Registrations.Remove(registration);
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
-
             return NoContent();
         }
         catch (Exception ex)
@@ -356,43 +321,22 @@ public class RegistrationsController : ControllerBase
 
     [HttpGet("exists-for-event/{eventId:long}")]
     public async Task<ActionResult<bool>> ExistsForEvent(long eventId)
+        => Ok(await _context.Registrations.AnyAsync(r => r.EventId == eventId));
+
+    private Task<bool> RegistrationExistsAsync(long id)
+        => _context.Registrations.AnyAsync(r => r.RegistrationId == id);
+
+    private Task<bool> AlreadyRegistered(long eventId, long participantId)
+        => _context.Registrations.AnyAsync(r => r.EventId == eventId && r.ParticipantId == participantId);
+
+    private Task<bool> DuplicateRegistrationExistsAsync(long eventId, long participantId, long excludeId)
+        => _context.Registrations.AnyAsync(r =>
+            r.RegistrationId != excludeId && r.EventId == eventId && r.ParticipantId == participantId);
+
+    private async Task<bool> IsEventCapacityReached(long eventId, int capacity, long? excludeId = null)
     {
-        var exists = await _context.Registrations
-            .AnyAsync(r => r.EventId == eventId);
-
-        return Ok(exists);
-    }
-
-    private async Task<bool> RegistrationExistsAsync(long id)
-    {
-        return await _context.Registrations.AnyAsync(r => r.RegistrationId == id);
-    }
-
-    private async Task<bool> AlreadyRegistered(long eventId, long participantId)
-    {
-        return await _context.Registrations
-            .AnyAsync(r => r.EventId == eventId && r.ParticipantId == participantId);
-    }
-
-    private async Task<bool> DuplicateRegistrationExistsAsync(long eventId, long participantId, long registrationIdToExclude)
-    {
-        return await _context.Registrations
-            .AnyAsync(r => r.RegistrationId != registrationIdToExclude && r.EventId == eventId && r.ParticipantId == participantId);
-    }
-
-    private async Task<bool> IsEventCapacityReached(long eventId, int capacity, long? registrationIdToExclude = null)
-    {
-        var registrationsQuery = _context.Registrations
-            .Where(r => r.EventId == eventId);
-
-        if (registrationIdToExclude.HasValue)
-        {
-            registrationsQuery = registrationsQuery
-                .Where(r => r.RegistrationId != registrationIdToExclude.Value);
-        }
-
-        var currentRegistrationCount = await registrationsQuery.CountAsync();
-
-        return currentRegistrationCount >= capacity;
+        var q = _context.Registrations.Where(r => r.EventId == eventId);
+        if (excludeId.HasValue) q = q.Where(r => r.RegistrationId != excludeId.Value);
+        return await q.CountAsync() >= capacity;
     }
 }
