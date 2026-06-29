@@ -22,7 +22,41 @@ namespace SmartEventPlatform.RegistrationService.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Participant", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Messaging.OutboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.ToTable("OutboxMessages", (string)null);
+                });
+
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Participant", b =>
                 {
                     b.Property<long>("ParticipantId")
                         .ValueGeneratedOnAdd()
@@ -53,7 +87,7 @@ namespace SmartEventPlatform.RegistrationService.Migrations
                     b.ToTable("Participants", (string)null);
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Registration", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Registration", b =>
                 {
                     b.Property<long>("RegistrationId")
                         .ValueGeneratedOnAdd()
@@ -80,9 +114,9 @@ namespace SmartEventPlatform.RegistrationService.Migrations
                     b.ToTable("Registrations", (string)null);
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Registration", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Registration", b =>
                 {
-                    b.HasOne("SmartEventPlatformWeb.RegistrationService.Models.Participant", "Participant")
+                    b.HasOne("SmartEventPlatform.RegistrationService.Models.Participant", "Participant")
                         .WithMany("Registrations")
                         .HasForeignKey("ParticipantId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -91,7 +125,7 @@ namespace SmartEventPlatform.RegistrationService.Migrations
                     b.Navigation("Participant");
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Participant", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Participant", b =>
                 {
                     b.Navigation("Registrations");
                 });

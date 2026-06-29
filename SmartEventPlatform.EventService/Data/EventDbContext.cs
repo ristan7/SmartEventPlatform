@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Models;
 
 namespace SmartEventPlatform.EventService.Data
@@ -13,6 +14,10 @@ namespace SmartEventPlatform.EventService.Data
         public DbSet<Event> Events { get; set; }
         public DbSet<EventSpeaker> EventSpeakers { get; set; }
         public DbSet<EventType> EventTypes { get; set; }
+
+        public DbSet<OutboxMessage> OutboxMessages { get; set; }
+        public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
+        public DbSet<EventRegistrationTracker> EventRegistrationTrackers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -58,6 +63,44 @@ namespace SmartEventPlatform.EventService.Data
                     .WithMany(ev => ev.EventSpeakers)
                     .HasForeignKey(es => es.EventId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<OutboxMessage>(entity =>
+            {
+                entity.ToTable("OutboxMessages");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.MessageId)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.EventType)
+                    .IsRequired();
+
+                entity.Property(e => e.Payload)
+                    .IsRequired();
+
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.MessageId).IsUnique();
+            });
+
+            modelBuilder.Entity<ProcessedMessage>(entity =>
+            {
+                entity.ToTable("ProcessedMessages");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.MessageId).IsUnique();
+            });
+
+            modelBuilder.Entity<EventRegistrationTracker>(entity =>
+            {
+                entity.ToTable("EventRegistrationTrackers");
+                entity.HasKey(e => e.EventId);
+
+                entity.Property(e => e.EventId)
+                      .ValueGeneratedNever();
+
+                entity.Property(e => e.RegistrationCount)
+                      .IsRequired();
             });
         }
     }

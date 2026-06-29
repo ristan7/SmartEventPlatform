@@ -1,8 +1,8 @@
-
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.ErrorHandling;
+using SmartEventPlatform.RegistrationService.Messaging;
 using SmartEventPlatform.RegistrationService.Resilience;
 
 namespace SmartEventPlatform.RegistrationService
@@ -12,8 +12,6 @@ namespace SmartEventPlatform.RegistrationService
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-
-            // Add services to the container.
 
             builder.Services.AddDbContext<RegistrationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -29,14 +27,29 @@ namespace SmartEventPlatform.RegistrationService
                 client.Timeout = TimeSpan.FromSeconds(3);
             });
 
+            // Outbox za registration events prema EventService-u
+            builder.Services.Configure<RabbitMqOptions>(
+                builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
+            builder.Services.AddHostedService<OutboxMessagePublisher>();
+
+            // Request-Reply klijent (Zadatak 4)
+            builder.Services.Configure<EventQueryRabbitMqOptions>(
+                builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<IRabbitMqEventQueryClient, RabbitMqEventQueryClient>();
+
+            // Email queue (Zadatak 4)
+            builder.Services.Configure<EmailRabbitMqOptions>(
+                builder.Configuration.GetSection(EmailRabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<IEmailQueuePublisher, EmailQueuePublisher>();
+            builder.Services.AddHostedService<EmailWorkerService>();
+
             builder.Services.AddControllers();
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -45,12 +58,8 @@ namespace SmartEventPlatform.RegistrationService
 
             app.UseExceptionHandler();
             app.UseHttpsRedirection();
-
             app.UseAuthorization();
-
-
             app.MapControllers();
-
             app.Run();
         }
     }

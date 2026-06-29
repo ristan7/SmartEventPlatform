@@ -1,11 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Polly;
 using SmartEventPlatform.Contracts.Events;
+using SmartEventPlatform.Contracts.Integration;
 using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
+using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Models;
-using System.Diagnostics.Metrics;
+using System.Text.Json;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
@@ -15,18 +16,19 @@ namespace SmartEventPlatform.EventService.Controllers
     {
         private readonly EventDbContext _context;
         private readonly IDirectoryServiceClient _directoryServiceClient;
-        private readonly IRegistrationServiceClient _registrationServiceClient;
-
-        //private static int _counter = 0;
+        private readonly ILogger<EventsController> _logger;
+        private readonly PublisherRabbitMqOptions _publisherOptions;
 
         public EventsController(
             EventDbContext context,
             IDirectoryServiceClient directoryServiceClient,
-            IRegistrationServiceClient registrationServiceClient)
+            ILogger<EventsController> logger,
+            Microsoft.Extensions.Options.IOptions<PublisherRabbitMqOptions> publisherOptions)
         {
             _context = context;
             _directoryServiceClient = directoryServiceClient;
-            _registrationServiceClient = registrationServiceClient;
+            _logger = logger;
+            _publisherOptions = publisherOptions.Value;
         }
 
         [HttpGet]
@@ -95,9 +97,7 @@ namespace SmartEventPlatform.EventService.Controllers
                 .FirstOrDefaultAsync();
 
             if (eventDto == null)
-            {
                 return NotFound();
-            }
 
             return Ok(eventDto);
         }
@@ -123,18 +123,6 @@ namespace SmartEventPlatform.EventService.Controllers
         [HttpGet("{id:long}/registration-info")]
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
-
-            //var attempt = Interlocked.Increment(ref _counter);
-
-            //if (attempt % 3 != 0)
-            //{
-            //    return StatusCode(500, "Simulated temporary EventService error.");
-            //}
-
-            //await Task.Delay(10000);
-
-            //return StatusCode(500, "Simulated EventService failure.");
-
             var dto = await _context.Events
                 .Where(e => e.EventId == id)
                 .Select(e => new EventRegistrationInfoDto
@@ -163,74 +151,94 @@ namespace SmartEventPlatform.EventService.Controllers
         public async Task<ActionResult<long>> Create(EventCreateUpdateDto dto)
         {
             if (!ModelState.IsValid)
-            {
                 return ValidationProblem(ModelState);
-            }
 
             var location = await _directoryServiceClient.GetLocationAsync(dto.LocationId);
 
             if (location == null)
-            {
                 return BadRequest("Selected location does not exist.");
-            }
 
             var eventTypeExists = await _context.EventTypes
                 .AnyAsync(et => et.EventTypeId == dto.EventTypeId);
 
             if (!eventTypeExists)
-            {
                 return BadRequest("Selected event type does not exist.");
-            }
 
-            var newEvent = new Event
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                EventName = dto.EventName,
-                Agenda = dto.Agenda,
-                EventDateTime = dto.EventDateTime,
-                DurationInMinutes = dto.DurationInMinutes,
-                RegistrationFee = dto.RegistrationFee,
-                LocationId = dto.LocationId,
-                LocationNameSnapshot = location.LocationName,
-                LocationAddressSnapshot = location.Address,
-                LocationCapacitySnapshot = location.Capacity,
-                EventTypeId = dto.EventTypeId
-            };
+                var newEvent = new Event
+                {
+                    EventName = dto.EventName,
+                    Agenda = dto.Agenda,
+                    EventDateTime = dto.EventDateTime,
+                    DurationInMinutes = dto.DurationInMinutes,
+                    RegistrationFee = dto.RegistrationFee,
+                    LocationId = dto.LocationId,
+                    LocationNameSnapshot = location.LocationName,
+                    LocationAddressSnapshot = location.Address,
+                    LocationCapacitySnapshot = location.Capacity,
+                    EventTypeId = dto.EventTypeId
+                };
 
-            _context.Events.Add(newEvent);
-            await _context.SaveChangesAsync();
+                _context.Events.Add(newEvent);
+                await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = newEvent.EventId }, newEvent.EventId);
+                // Outbox — notify DirectoryService that a new event is using a location.
+                // RoutingKey routes this to the location-usage queue.
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(EventCreatedEvent),
+                    RoutingKey = _publisherOptions.LocationUsageRoutingKey,
+                    Payload = JsonSerializer.Serialize(new EventCreatedEvent
+                    {
+                        EventId = newEvent.EventId,
+                        LocationId = newEvent.LocationId
+                    }),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "Event created. EventId={EventId}, LocationId={LocationId}.",
+                    newEvent.EventId, newEvent.LocationId);
+
+                return CreatedAtAction(nameof(GetById), new { id = newEvent.EventId }, newEvent.EventId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating event.");
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         [HttpPut("{id:long}")]
         public async Task<IActionResult> Update(long id, EventCreateUpdateDto dto)
         {
             if (!ModelState.IsValid)
-            {
                 return ValidationProblem(ModelState);
-            }
 
             var existingEvent = await _context.Events.FindAsync(id);
 
             if (existingEvent == null)
-            {
                 return NotFound();
-            }
 
             var location = await _directoryServiceClient.GetLocationAsync(dto.LocationId);
 
             if (location == null)
-            {
                 return BadRequest("Selected location does not exist.");
-            }
 
             var eventTypeExists = await _context.EventTypes
                 .AnyAsync(et => et.EventTypeId == dto.EventTypeId);
 
             if (!eventTypeExists)
-            {
                 return BadRequest("Selected event type does not exist.");
-            }
+
+            var oldLocationId = existingEvent.LocationId;
 
             existingEvent.EventName = dto.EventName;
             existingEvent.Agenda = dto.Agenda;
@@ -243,18 +251,62 @@ namespace SmartEventPlatform.EventService.Controllers
             existingEvent.LocationCapacitySnapshot = location.Capacity;
             existingEvent.EventTypeId = dto.EventTypeId;
 
-            try
+            // If the location changed, notify DirectoryService:
+            // send a "deleted" for the old location and a "created" for the new one.
+            // Both messages go to the location-usage routing key.
+            if (oldLocationId != dto.LocationId)
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await EventExistsAsync(id))
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    return NotFound();
-                }
+                    await _context.SaveChangesAsync();
 
-                throw;
+                    _context.OutboxMessages.Add(new OutboxMessage
+                    {
+                        EventType = nameof(EventDeletedEvent),
+                        RoutingKey = _publisherOptions.LocationUsageRoutingKey,
+                        Payload = JsonSerializer.Serialize(new EventDeletedEvent
+                        {
+                            EventId = id,
+                            LocationId = oldLocationId
+                        }),
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                    _context.OutboxMessages.Add(new OutboxMessage
+                    {
+                        EventType = nameof(EventCreatedEvent),
+                        RoutingKey = _publisherOptions.LocationUsageRoutingKey,
+                        Payload = JsonSerializer.Serialize(new EventCreatedEvent
+                        {
+                            EventId = id,
+                            LocationId = dto.LocationId
+                        }),
+                        CreatedAt = DateTime.UtcNow.AddMilliseconds(1)
+                    });
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    _logger.LogInformation(
+                        "Event updated with location change. EventId={EventId}, OldLocationId={OldLocationId}, NewLocationId={NewLocationId}.",
+                        id, oldLocationId, dto.LocationId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error updating event. EventId={EventId}.", id);
+                    await transaction.RollbackAsync();
+                    throw;
+                }
+            }
+            else
+            {
+                try { await _context.SaveChangesAsync(); }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!await EventExistsAsync(id)) return NotFound();
+                    throw;
+                }
             }
 
             return NoContent();
@@ -284,9 +336,7 @@ namespace SmartEventPlatform.EventService.Controllers
                 .FirstOrDefaultAsync();
 
             if (eventDto == null)
-            {
                 return NotFound();
-            }
 
             return Ok(eventDto);
         }
@@ -299,41 +349,63 @@ namespace SmartEventPlatform.EventService.Controllers
                 .FirstOrDefaultAsync(e => e.EventId == id);
 
             if (existingEvent == null)
-            {
                 return NotFound();
-            }
 
             var deleteErrors = new List<string>();
 
-            var hasAssignedSpeakers = existingEvent.EventSpeakers.Any();
-
-            if (hasAssignedSpeakers)
-            {
+            if (existingEvent.EventSpeakers.Any())
                 deleteErrors.Add("This event cannot be deleted because it has assigned speakers.");
-            }
 
-            var hasRegistrations = await _registrationServiceClient.EventHasRegistrationsAsync(id);
+            var hasRegistrations = await _context.EventRegistrationTrackers
+                .AnyAsync(t => t.EventId == id && t.RegistrationCount > 0);
 
             if (hasRegistrations)
-            {
                 deleteErrors.Add("This event cannot be deleted because it has participant registrations.");
-            }
 
             if (deleteErrors.Any())
-            {
                 return BadRequest(string.Join(" ", deleteErrors));
-            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
+                var locationId = existingEvent.LocationId;
+
                 _context.Events.Remove(existingEvent);
                 await _context.SaveChangesAsync();
+
+                // Outbox — notify DirectoryService that the event no longer uses this location.
+                _context.OutboxMessages.Add(new OutboxMessage
+                {
+                    EventType = nameof(EventDeletedEvent),
+                    RoutingKey = _publisherOptions.LocationUsageRoutingKey,
+                    Payload = JsonSerializer.Serialize(new EventDeletedEvent
+                    {
+                        EventId = id,
+                        LocationId = locationId
+                    }),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "Event deleted. EventId={EventId}, LocationId={LocationId}.",
+                    id, locationId);
 
                 return NoContent();
             }
             catch (DbUpdateException)
             {
+                await transaction.RollbackAsync();
                 return BadRequest("This event cannot be deleted because it is used by other records.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting event. EventId={EventId}.", id);
+                await transaction.RollbackAsync();
+                throw;
             }
         }
 

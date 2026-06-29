@@ -1,8 +1,8 @@
-
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.EventService.Clients;
 using SmartEventPlatform.EventService.Data;
 using SmartEventPlatform.EventService.ErrorHandling;
+using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Resilience;
 
 namespace SmartEventPlatform.EventService
@@ -13,10 +13,8 @@ namespace SmartEventPlatform.EventService
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
             builder.Services.AddDbContext<EventDbContext>(options =>
-                    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -35,14 +33,27 @@ namespace SmartEventPlatform.EventService
                 client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:RegistrationService"]!);
                 client.Timeout = TimeSpan.FromSeconds(3);
             });
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+
+            builder.Services.Configure<PublisherRabbitMqOptions>(
+                builder.Configuration.GetSection(PublisherRabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
+            builder.Services.AddHostedService<OutboxMessagePublisher>();
+
+            builder.Services.Configure<ConsumerRabbitMqOptions>(
+                builder.Configuration.GetSection(ConsumerRabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<RegistrationEventsConsumerService>();
+
+            // Zadatak 4 — Request-Reply server strana
+            builder.Services.Configure<EventQueryRabbitMqOptions>(
+                builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<EventQueryConsumerService>();
+
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -51,12 +62,8 @@ namespace SmartEventPlatform.EventService
 
             app.UseExceptionHandler();
             app.UseHttpsRedirection();
-
             app.UseAuthorization();
-
-
             app.MapControllers();
-
             app.Run();
         }
     }

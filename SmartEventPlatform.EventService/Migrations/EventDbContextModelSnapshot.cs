@@ -22,6 +22,44 @@ namespace SmartEventPlatform.EventService.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SmartEventPlatform.EventService.Messaging.OutboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RoutingKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.ToTable("OutboxMessages", (string)null);
+                });
+
             modelBuilder.Entity("SmartEventPlatform.EventService.Models.Event", b =>
                 {
                     b.Property<long>("EventId")
@@ -75,6 +113,19 @@ namespace SmartEventPlatform.EventService.Migrations
                     b.ToTable("Events", (string)null);
                 });
 
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.EventRegistrationTracker", b =>
+                {
+                    b.Property<long>("EventId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("RegistrationCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("EventId");
+
+                    b.ToTable("EventRegistrationTrackers", (string)null);
+                });
+
             modelBuilder.Entity("SmartEventPlatform.EventService.Models.EventSpeaker", b =>
                 {
                     b.Property<long>("EventSpeakerId")
@@ -125,6 +176,33 @@ namespace SmartEventPlatform.EventService.Migrations
                     b.HasKey("EventTypeId");
 
                     b.ToTable("EventTypes", (string)null);
+                });
+
+            modelBuilder.Entity("SmartEventPlatform.EventService.Models.ProcessedMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.ToTable("ProcessedMessages", (string)null);
                 });
 
             modelBuilder.Entity("SmartEventPlatform.EventService.Models.Event", b =>
