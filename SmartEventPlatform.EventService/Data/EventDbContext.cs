@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.EventService.EventSourcing;
 using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Models;
 
@@ -21,6 +22,19 @@ namespace SmartEventPlatform.EventService.Data
 
         // Saga: privremene rezervacije mjesta dok Saga nije završena
         public DbSet<SagaSpotReservation> SagaSpotReservations { get; set; }
+
+        // ── EVENT SOURCING tabele ──────────────────────────────────────────
+        /// <summary>
+        /// Tabela koja čuva sve domenskie događaje hronološkim redom.
+        /// Ekvivalent InMemoryDatabase._events iz primjera.
+        /// </summary>
+        public DbSet<EventStoreEntry> EventStoreEntries { get; set; }
+
+        /// <summary>
+        /// Tabela koja čuva snapshote agregata za efikasno učitavanje.
+        /// Ekvivalent InMemoryDatabase._snapshots iz primjera.
+        /// </summary>
+        public DbSet<EventSnapshotEntry> EventSnapshotEntries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -119,6 +133,37 @@ namespace SmartEventPlatform.EventService.Data
                 // SagaId mora biti jedinstven - jedna Saga = jedna rezervacija
                 entity.HasIndex(e => e.SagaId).IsUnique();
                 entity.HasIndex(e => e.EventId);
+            });
+
+            // ── EVENT SOURCING konfiguracija ──────────────────────────────
+
+            modelBuilder.Entity<EventStoreEntry>(entity =>
+            {
+                entity.ToTable("EventStoreEntries");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.AggregateId).IsRequired();
+                entity.Property(e => e.EventType).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Payload).IsRequired();
+                entity.Property(e => e.Version).IsRequired();
+                entity.Property(e => e.OccurredAt).IsRequired().HasColumnType("datetime2");
+
+                // Indeks po AggregateId + Version za brzo učitavanje historije
+                entity.HasIndex(e => new { e.AggregateId, e.Version }).IsUnique();
+                entity.HasIndex(e => e.AggregateId);
+            });
+
+            modelBuilder.Entity<EventSnapshotEntry>(entity =>
+            {
+                entity.ToTable("EventSnapshotEntries");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.AggregateId).IsRequired();
+                entity.Property(e => e.Version).IsRequired();
+                entity.Property(e => e.SnapshotData).IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired().HasColumnType("datetime2");
+
+                entity.HasIndex(e => e.AggregateId);
             });
         }
     }
