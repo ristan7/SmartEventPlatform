@@ -11,15 +11,12 @@ namespace SmartEventPlatform.DirectoryService
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
             builder.Services.AddDbContext<DirectoryDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-            
             builder.Services.Configure<LocationUsageRabbitMqOptions>(
                 builder.Configuration.GetSection(LocationUsageRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<LocationUsageConsumerService>();
@@ -28,6 +25,13 @@ namespace SmartEventPlatform.DirectoryService
                 builder.Configuration.GetSection(SpeakerUsageRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<SpeakerUsageConsumerService>();
 
+            // ── Saga Koreografija ─────────────────────────────────────────
+            builder.Services.Configure<SagaChoreographyRabbitMqOptions>(
+                builder.Configuration.GetSection(SagaChoreographyRabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<ISagaChoreographyPublisher, SagaChoreographyPublisher>();
+            builder.Services.AddHostedService<SagaChoreographyConsumerService>();
+            // ─────────────────────────────────────────────────────────────
+
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
@@ -35,7 +39,6 @@ namespace SmartEventPlatform.DirectoryService
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -45,9 +48,7 @@ namespace SmartEventPlatform.DirectoryService
             app.UseExceptionHandler();
             app.UseHttpsRedirection();
             app.UseAuthorization();
-
             app.MapControllers();
-
             app.Run();
         }
     }
