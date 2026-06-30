@@ -20,9 +20,8 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventTypes = await GetListAsync<EventTypeDto>(client, "api/eventtypes");
-                var eventTypes = await ApiHttpHelper.GetListAsync<EventTypeDto>(client, "api/eventtypes");
+                var client = CreateClient();
+                var eventTypes = await ApiHttpHelper.GetListAsync<EventTypeDto>(client, "gateway/eventtypes");
 
                 var vm = eventTypes
                     .OrderBy(t => t.Name)
@@ -53,21 +52,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Details(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
-                var eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
+                var client = CreateClient();
+                var eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"gateway/eventtypes/{id.Value}");
 
-                if (eventType == null)
-                {
-                    return NotFound();
-                }
+                if (eventType == null) return NotFound();
 
                 var vm = new EventTypeDetailsViewModel
                 {
@@ -102,21 +94,14 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(EventTypeCreateViewModel vm)
         {
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
+            if (!ModelState.IsValid) return View(vm);
 
-            var dto = new EventTypeDto
-            {
-                Name = vm.Name
-            };
+            var dto = new EventTypeDto { Name = vm.Name };
 
             try
             {
-                var client = CreateEventServiceClient();
-                //await PostAndReadIdAsync(client, "api/eventtypes", dto);
-                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/eventtypes", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "gateway/eventtypes", dto);
 
                 if (!result.Success)
                 {
@@ -144,21 +129,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
-                var eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
+                var client = CreateClient();
+                var eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"gateway/eventtypes/{id.Value}");
 
-                if (eventType == null)
-                {
-                    return NotFound();
-                }
+                if (eventType == null) return NotFound();
 
                 var vm = new EventTypeEditViewModel
                 {
@@ -188,27 +166,15 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(long id, EventTypeEditViewModel vm)
         {
-            if (id != vm.EventTypeId)
-            {
-                return NotFound();
-            }
+            if (id != vm.EventTypeId) return NotFound();
+            if (!ModelState.IsValid) return View(vm);
 
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
-
-            var dto = new EventTypeDto
-            {
-                EventTypeId = vm.EventTypeId,
-                Name = vm.Name
-            };
+            var dto = new EventTypeDto { EventTypeId = vm.EventTypeId, Name = vm.Name };
 
             try
             {
-                var client = CreateEventServiceClient();
-                //await PutAsync(client, $"api/eventtypes/{id}", dto);
-                var result = await ApiHttpHelper.PutAsync(client, $"api/eventtypes/{id}", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PutAsync(client, $"gateway/eventtypes/{id}", dto);
 
                 if (!result.Success)
                 {
@@ -236,25 +202,16 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Delete(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
-                var eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id.Value}");
+                var client = CreateClient();
+                var eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"gateway/eventtypes/{id.Value}");
 
-                if (eventType == null)
-                {
-                    return NotFound();
-                }
+                if (eventType == null) return NotFound();
 
-                var vm = MapToDeleteViewModel(eventType);
-
-                return View(vm);
+                return View(MapToDeleteViewModel(eventType));
             }
             catch (TaskCanceledException)
             {
@@ -280,24 +237,17 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateClient();
+                eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"gateway/eventtypes/{id}");
 
-                //eventType = await GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id}");
-                eventType = await ApiHttpHelper.GetNullableAsync<EventTypeDto>(client, $"api/eventtypes/{id}");
+                if (eventType == null) return NotFound();
 
-                if (eventType == null)
-                {
-                    return NotFound();
-                }
-
-                //await DeleteAsync(client, $"api/eventtypes/{id}");
-                var result = await ApiHttpHelper.DeleteAsync(client, $"api/eventtypes/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"gateway/eventtypes/{id}");
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The event type could not be deleted.");
-                    var deleteVm = MapToDeleteViewModel(eventType);
-                    return View("Delete", deleteVm);
+                    return View("Delete", MapToDeleteViewModel(eventType));
                 }
 
                 return RedirectToAction(nameof(Index));
@@ -315,27 +265,15 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the event type.");
             }
 
-            if (eventType == null)
-            {
-                return RedirectToAction(nameof(Index));
-            }
+            if (eventType == null) return RedirectToAction(nameof(Index));
 
-            var vm = MapToDeleteViewModel(eventType);
-            return View("Delete", vm);
+            return View("Delete", MapToDeleteViewModel(eventType));
         }
 
-        private static EventTypeDeleteViewModel MapToDeleteViewModel(EventTypeDto eventType)
-        {
-            return new EventTypeDeleteViewModel
-            {
-                EventTypeId = eventType.EventTypeId,
-                Name = eventType.Name
-            };
-        }
+        private static EventTypeDeleteViewModel MapToDeleteViewModel(EventTypeDto eventType) =>
+            new EventTypeDeleteViewModel { EventTypeId = eventType.EventTypeId, Name = eventType.Name };
 
-        private HttpClient CreateEventServiceClient()
-        {
-            return _httpClientFactory.CreateClient("EventService");
-        }
+        private HttpClient CreateClient() =>
+            _httpClientFactory.CreateClient("ApiGateway");
     }
 }

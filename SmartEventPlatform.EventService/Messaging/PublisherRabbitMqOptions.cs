@@ -17,7 +17,7 @@
         public string SpeakerUsageRoutingKey { get; set; } = "event.speaker-usage.changed";
         public string SpeakerUsageQueue { get; set; } = "directory.speaker-usage.queue";
 
-        // DLQ — mora biti konzistentan s DirectoryService consumerima
+        
         public string DeadLetterExchange { get; set; } = "smart-event.dlx";
         public string LocationUsageDlq { get; set; } = "directory.location-usage.dlq";
         public string SpeakerUsageDlq { get; set; } = "directory.speaker-usage.dlq";

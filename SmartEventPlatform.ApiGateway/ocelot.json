@@ -2,18 +2,13 @@
   "Routes": [
 
     // =================================================================
-    // FUNKCIONALNOST 1: RUTIRANJE (Routing)
-    // Svaka ruta mapira upstream putanju (sta klijent salje gatewaju)
-    // na downstream putanju (sta gateway prosljedjuje servisu).
+    // FUNCTIONALITY 1: ROUTING
     // =================================================================
 
     // -----------------------------------------------------------------
-    // EVENTS - GET lista dogadjaja
-    // FUNKCIONALNOST 3: KESIRANJE (CacheOptions - TTL 60 sekundi)
-    // FUNKCIONALNOST 4: LOAD BALANCING (LeastConnection)
-    //   LeastConnection salje zahtjev serveru koji ima najmanje
-    //   aktivnih veza. U dev okruzenju postoji samo jedna instanca,
-    //   ali konfiguracija demonstrira obrazac za skaliranje.
+    // EVENTS - GET list (with caching)
+    // FUNCTIONALITY 3: CACHING (TtlSeconds 60)
+    // FUNCTIONALITY 4: LOAD BALANCING (LeastConnection)
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -37,7 +32,23 @@
     },
 
     // -----------------------------------------------------------------
-    // EVENTS - GET detalji jednog dogadjaja (sa kesom)
+    // EVENTS - GET upcoming
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/events/upcoming",
+      "DownstreamPathTemplate": "/api/events/upcoming",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENTS - GET single (with caching)
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -57,23 +68,7 @@
     },
 
     // -----------------------------------------------------------------
-    // EVENTS - GET nadolazeci dogadjaji
-    // -----------------------------------------------------------------
-    {
-      "UpstreamHttpMethod": [ "Get" ],
-      "UpstreamPathTemplate": "/gateway/events/upcoming",
-      "DownstreamPathTemplate": "/api/events/upcoming",
-      "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [
-        {
-          "Host": "localhost",
-          "Port": 5022
-        }
-      ]
-    },
-
-    // -----------------------------------------------------------------
-    // EVENTS - POST kreiraj dogadjaj
+    // EVENTS - POST create
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Post" ],
@@ -89,7 +84,7 @@
     },
 
     // -----------------------------------------------------------------
-    // EVENTS - PUT azuriraj dogadjaj
+    // EVENTS - PUT update
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Put" ],
@@ -105,7 +100,7 @@
     },
 
     // -----------------------------------------------------------------
-    // EVENTS - DELETE obrisi dogadjaj
+    // EVENTS - DELETE
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Delete" ],
@@ -121,7 +116,7 @@
     },
 
     // -----------------------------------------------------------------
-    // EVENT TYPES - CRUD
+    // EVENT TYPES - GET list (with caching)
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -165,7 +160,23 @@
     },
 
     // -----------------------------------------------------------------
-    // EVENT SPEAKERS - CRUD
+    // EVENT SPEAKERS - GET by speaker (must be BEFORE /{id} route)
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/eventspeakers/by-speaker/{speakerId}",
+      "DownstreamPathTemplate": "/api/eventspeakers/by-speaker/{speakerId}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENT SPEAKERS - GET list
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -179,10 +190,14 @@
         }
       ]
     },
+
+    // -----------------------------------------------------------------
+    // EVENT SPEAKERS - GET single / PUT / DELETE by single ID
+    // -----------------------------------------------------------------
     {
-      "UpstreamHttpMethod": [ "Get", "Delete" ],
-      "UpstreamPathTemplate": "/gateway/eventspeakers/{eventId}/{speakerId}",
-      "DownstreamPathTemplate": "/api/eventspeakers/{eventId}/{speakerId}",
+      "UpstreamHttpMethod": [ "Get", "Put", "Delete" ],
+      "UpstreamPathTemplate": "/gateway/eventspeakers/{id}",
+      "DownstreamPathTemplate": "/api/eventspeakers/{id}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
@@ -191,6 +206,10 @@
         }
       ]
     },
+
+    // -----------------------------------------------------------------
+    // EVENT SPEAKERS - POST create
+    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Post" ],
       "UpstreamPathTemplate": "/gateway/eventspeakers",
@@ -205,14 +224,13 @@
     },
 
     // =================================================================
-    // DIRECTORY SERVICE - LOKACIJE
-    // FUNKCIONALNOST 3: KESIRANJE na GET ruti
+    // DIRECTORY SERVICE - LOCATIONS
+    // FUNCTIONALITY 3: CACHING on GET list
     // =================================================================
 
     // -----------------------------------------------------------------
-    // LOCATIONS - GET lista lokacija (sa kesom)
-    // FUNKCIONALNOST 5: API KOMPOZICIJA - ova ruta ima Key "locations-list"
-    //   sto je koristi Ocelot agregator (vidi Aggregates ispod)
+    // LOCATIONS - GET list (with caching, Key for aggregation)
+    // FUNCTIONALITY 5: API COMPOSITION - used by /gateway/dashboard
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -233,7 +251,7 @@
     },
 
     // -----------------------------------------------------------------
-    // LOCATIONS - GET detalji lokacije
+    // LOCATIONS - GET single
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -249,7 +267,7 @@
     },
 
     // -----------------------------------------------------------------
-    // LOCATIONS - POST kreiraj lokaciju
+    // LOCATIONS - POST create
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Post" ],
@@ -281,7 +299,7 @@
     },
 
     // -----------------------------------------------------------------
-    // SPEAKERS - GET lista predavaca (sa kesom)
+    // SPEAKERS - GET list (with caching)
     // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -341,6 +359,22 @@
     // =================================================================
 
     // -----------------------------------------------------------------
+    // AVAILABLE EVENTS
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/availableevents",
+      "DownstreamPathTemplate": "/api/availableevents",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
     // REGISTRATIONS - CRUD
     // -----------------------------------------------------------------
     {
@@ -371,6 +405,18 @@
       "UpstreamHttpMethod": [ "Post" ],
       "UpstreamPathTemplate": "/gateway/registrations",
       "DownstreamPathTemplate": "/api/registrations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Put" ],
+      "UpstreamPathTemplate": "/gateway/registrations/{id}",
+      "DownstreamPathTemplate": "/api/registrations/{id}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
@@ -432,41 +478,9 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // AVAILABLE EVENTS
-    // -----------------------------------------------------------------
-    {
-      "UpstreamHttpMethod": [ "Get" ],
-      "UpstreamPathTemplate": "/gateway/availableevents",
-      "DownstreamPathTemplate": "/api/availableevents",
-      "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [
-        {
-          "Host": "localhost",
-          "Port": 5001
-        }
-      ]
-    },
-
     // =================================================================
-    // FUNKCIONALNOST 5: API KOMPOZICIJA (Aggregation)
-    // Rute sa Key su input za agregator.
-    // Agregator pravi dva paralelna poziva ka EventService i DirectoryService,
-    // i vraca kombinovani JSON objekat sa oba odgovora spojenim.
-    //
-    // Upstream:  GET /gateway/dashboard
-    // Downstream: istovremeno zove /gateway/events i /gateway/locations
-    //             i spaja odgovore u jedan JSON
-    //
-    // (vidi Aggregates sekciju ispod)
-    // =================================================================
-
-    // =================================================================
-    // FUNKCIONALNOST 10: UPRAVLJANJE VERZIJAMA API-ja (API Versioning)
-    // Klijent koristi /api/v1/events na gatewaju,
-    // a gateway prosljedjuje na /api/events servisu.
-    // Na ovaj nacin mozemo u buducnosti dodati /api/v2/events
-    // koji ce ukazivati na drugaciju logiku, bez mjenjanja servisa.
+    // FUNCTIONALITY 10: API VERSIONING
+    // Client uses /api/v1/xxx, gateway forwards to /api/xxx on the service.
     // =================================================================
     {
       "UpstreamHttpMethod": [ "Get" ],
@@ -516,18 +530,8 @@
   ],
 
   // =================================================================
-  // FUNKCIONALNOST 5: API KOMPOZICIJA
-  // Aggregates kombinuje odgovore vise ruta u jedan JSON.
-  //
-  // Poziv:   GET http://localhost:5200/gateway/dashboard
-  // Ocelot zove paralelno:
-  //   - Rutu sa Key "events-list"   -> EventService  GET /api/events
-  //   - Rutu sa Key "locations-list" -> DirectoryService GET /api/locations
-  // i vraca:
-  // {
-  //   "events-list":    [ ... lista dogadjaja ... ],
-  //   "locations-list": [ ... lista lokacija ... ]
-  // }
+  // FUNCTIONALITY 5: API COMPOSITION (Aggregation)
+  // GET /gateway/dashboard combines events-list + locations-list.
   // =================================================================
   "Aggregates": [
     {
@@ -537,16 +541,15 @@
   ],
 
   // =================================================================
-  // GLOBALNA KONFIGURACIJA
+  // GLOBAL CONFIGURATION
   // =================================================================
   "GlobalConfiguration": {
     "BaseUrl": "http://localhost:5200",
 
     // -----------------------------------------------------------------
-    // FUNKCIONALNOST 2: RATE LIMITING
-    // Globalno ogranicenje: max 30 zahtjeva u 30 sekundi po klijentu.
-    // Klijent se identifikuje po ClientIdHeader (ovdje X-ClientId header).
-    // Ako klijent prekoraci limit, dobija 429 Too Many Requests.
+    // FUNCTIONALITY 2: RATE LIMITING
+    // Max 30 requests per 30 seconds per client (identified by X-ClientId header).
+    // Clients that exceed the limit receive HTTP 429 Too Many Requests.
     // -----------------------------------------------------------------
     "RateLimitOptions": {
       "ClientIdHeader": "X-ClientId",
@@ -554,7 +557,7 @@
       "Period": "30s",
       "PeriodTimespan": 30,
       "StatusCode": 429,
-      "QuotaExceededMessage": "Prekoracen limit API poziva! Dozvoljeno maksimalno {0} poziva za period {1}.",
+      "QuotaExceededMessage": "API rate limit exceeded! Maximum {0} requests allowed per {1} period.",
       "HttpStatusCode": 429,
       "DisableRateLimitHeaders": false
     }
