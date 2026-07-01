@@ -45,13 +45,6 @@ public sealed class EventServiceClient : IEventServiceClient
         });
     }
 
-    // ── Saga metode ──────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Korak 2 Sage: Pošalje POST na EventService da privremeno rezerviše mjesto.
-    /// Vraća false ako nema kapaciteta (HTTP 409 Conflict).
-    /// Baca iznimku pri mrežnim greškama (triggered compensation).
-    /// </summary>
     public Task<bool> ReserveSpotAsync(long eventId, long sagaId, CancellationToken cancellationToken)
     {
         return ExecuteAsync(async () =>
@@ -74,10 +67,6 @@ public sealed class EventServiceClient : IEventServiceClient
         });
     }
 
-    /// <summary>
-    /// Korak 2 kompenzacija: Briše privremenu rezervaciju iz EventService.
-    /// Poziva se ako korak 3 ili 4 ne uspije.
-    /// </summary>
     public Task ReleaseSpotAsync(long eventId, long sagaId, CancellationToken cancellationToken)
     {
         return ExecuteAsync(async () =>
@@ -88,7 +77,6 @@ public sealed class EventServiceClient : IEventServiceClient
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                // Može se desiti ako kompenzacija ide dva puta - ignorišemo
                 _logger.LogWarning(
                     "[Saga {SagaId}] EventService nije pronašao rezervaciju za release (EventId={EventId}). " +
                     "Moguć ponovni pokušaj kompenzacije - nastavaljamo.",
@@ -100,10 +88,6 @@ public sealed class EventServiceClient : IEventServiceClient
         });
     }
 
-    /// <summary>
-    /// Korak 4 Sage: Potvrđuje rezervaciju - prebacuje je iz privremene u stvarnu evidenciju.
-    /// Poziva se samo kada je saga uspješna.
-    /// </summary>
     public Task ConfirmSpotAsync(long eventId, long sagaId, CancellationToken cancellationToken)
     {
         return ExecuteAsync(async () =>
@@ -116,8 +100,6 @@ public sealed class EventServiceClient : IEventServiceClient
             response.EnsureSuccessStatusCode();
         });
     }
-
-    // ── Interni pomoćni metod za retry + circuit breaker ────────────────────
 
     private async Task ExecuteAsync(Func<Task> operation)
     {

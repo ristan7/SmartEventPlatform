@@ -6,22 +6,14 @@ using SmartEventPlatform.RegistrationService.Models;
 
 namespace SmartEventPlatform.RegistrationService.Saga;
 
-/// <summary>
-/// Saga Orkestrator za registraciju učesnika na događaj.
-///
-/// Orkestrator je centralna komponenta koja koordinira slijedеće korake:
-///
+
 ///   [Korak 1] RegistrationService: Kreiranje PENDING registracije
 ///   [Korak 2] EventService:        Rezervacija mjesta (provjera kapaciteta)
 ///   [Korak 3] DirectoryService:    Evidencija prisustva na lokaciji
 ///   [Korak 4] RegistrationService: Potvrda registracije (CONFIRMED) + email + finalizacija u EventService
 ///
-/// Ako bilo koji korak ne uspije, pokreću se kompenzacione akcije
-/// obrnutim redoslijedom (Korak N-1 → Korak 1).
-///
 /// Stanje Sage se čuva u bazi (SagaStates tabela) kako bi se
 /// moglo pratiti i debuggirati svaki Saga proces.
-/// </summary>
 public class RegistrationSagaOrchestrator
 {
     private readonly RegistrationDbContext _context;
@@ -44,30 +36,24 @@ public class RegistrationSagaOrchestrator
         _logger = logger;
     }
 
-    /// <summary>
-    /// Rezultat izvršavanja Sage.
-    /// </summary>
+    
     public record SagaResult(
         bool Success,
         long? RegistrationId,
         string? ErrorMessage);
 
-    /// <summary>
-    /// Ulazna tačka za pokretanje Saga procesa.
-    /// Poziva je RegistrationsController.Create umjesto direktnog kreiranja registracije.
-    /// </summary>
+    
     public async Task<SagaResult> ExecuteAsync(
         long eventId,
         long participantId,
         DateTime registrationDate,
-        long locationId,      // potreban za Korak 3
-        string eventName,     // potreban za email
+        long locationId,      
+        string eventName,     
         string participantFirstName,
         string participantLastName,
         string participantEmail,
         CancellationToken cancellationToken)
     {
-        // ── Inicijalizacija Saga stanja ──────────────────────────────────────
         var saga = new SagaState
         {
             Status = "Started",
@@ -84,9 +70,7 @@ public class RegistrationSagaOrchestrator
             "[Saga {SagaId}] Pokrenuta. EventId={EventId}, ParticipantId={ParticipantId}.",
             saga.SagaId, eventId, participantId);
 
-        // ════════════════════════════════════════════════════════════════════
         // KORAK 1: Kreiranje PENDING registracije
-        // ════════════════════════════════════════════════════════════════════
         Registration registration;
         await using (var tx = await _context.Database.BeginTransactionAsync(cancellationToken))
         {
@@ -107,11 +91,12 @@ public class RegistrationSagaOrchestrator
                 saga.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync(cancellationToken);
 
-                await tx.CommitAsync(cancellationToken);
 
                 saga.RegistrationId = registration.RegistrationId;
                 saga.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync(cancellationToken);
+
+                await tx.CommitAsync(cancellationToken);
 
                 _logger.LogInformation(
                     "[Saga {SagaId}] Korak 1 završen: RegistrationId={RegistrationId} (PENDING).",
@@ -129,21 +114,19 @@ public class RegistrationSagaOrchestrator
             }
         }
 
-        // ════════════════════════════════════════════════════════════════════
         // KORAK 2: Rezervacija mjesta u EventService
-        // ════════════════════════════════════════════════════════════════════
         bool spotReserved;
         try
         {
             _logger.LogInformation(
-                "[Saga {SagaId}] Korak 2: Rezervišem mjesto u EventService (EventId={EventId})...",
+                "[Saga {SagaId}] Korak 2: Rezervišem mesto u EventService (EventId={EventId})...",
                 saga.SagaId, eventId);
 
             spotReserved = await _eventServiceClient.ReserveSpotAsync(eventId, saga.SagaId, cancellationToken);
 
             if (!spotReserved)
             {
-                // Kapacitet popunjen - ovo nije tehnička greška, nego poslovna
+                // Kapacitet popunjen - poslovna greska
                 _logger.LogWarning(
                     "[Saga {SagaId}] Korak 2: EventService odbio rezervaciju (kapacitet popunjen). " +
                     "Pokrećem kompenzaciju od Koraka 1.",
@@ -157,22 +140,20 @@ public class RegistrationSagaOrchestrator
             saga.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("[Saga {SagaId}] Korak 2 završen: Mjesto rezervisano.", saga.SagaId);
+            _logger.LogInformation("[Saga {SagaId}] Korak 2 završen: Mesto rezervisano.", saga.SagaId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[Saga {SagaId}] Korak 2 PUKAO. Pokrećem kompenzaciju Koraka 1.", saga.SagaId);
             await CompensateStep1Async(saga, $"Korak 2 pukao: {ex.Message}", cancellationToken);
-            return new SagaResult(false, null, "Greška pri rezervaciji mjesta. Registracija je otkazana.");
+            return new SagaResult(false, null, "Greška pri rezervaciji mesta. Registracija je otkazana.");
         }
 
-        // ════════════════════════════════════════════════════════════════════
         // KORAK 3: Evidencija prisustva u DirectoryService
-        // ════════════════════════════════════════════════════════════════════
         try
         {
             _logger.LogInformation(
-                "[Saga {SagaId}] Korak 3: Bilježim prisustvo u DirectoryService (LocationId={LocationId})...",
+                "[Saga {SagaId}] Korak 3: Beležim prisustvo u DirectoryService (LocationId={LocationId})...",
                 saga.SagaId, locationId);
 
             await _directoryServiceClient.RecordAttendanceAsync(locationId, saga.SagaId, cancellationToken);
@@ -194,15 +175,13 @@ public class RegistrationSagaOrchestrator
             saga.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Kompenzacija ide OBRNUTIM REDOSLIJEDOM: Korak 2 pa Korak 1
+            // obrnuti redosled
             await CompensateStep2Async(saga, cancellationToken);
             await CompensateStep1Async(saga, $"Korak 3 pukao: {ex.Message}", cancellationToken);
             return new SagaResult(false, null, "Greška pri evidenciji prisustva. Registracija je otkazana.");
         }
 
-        // ════════════════════════════════════════════════════════════════════
         // KORAK 4: Potvrda registracije (CONFIRMED) + email + finalizacija
-        // ════════════════════════════════════════════════════════════════════
         try
         {
             _logger.LogInformation(
@@ -223,7 +202,6 @@ public class RegistrationSagaOrchestrator
                 saga.SagaId, registration.RegistrationId);
 
             // 4b. Potvrdi rezervaciju u EventService
-            // (prebacuje je iz privremene SagaSpotReservations u stvarni EventRegistrationTracker)
             try
             {
                 await _eventServiceClient.ConfirmSpotAsync(eventId, saga.SagaId, cancellationToken);
@@ -232,8 +210,7 @@ public class RegistrationSagaOrchestrator
             }
             catch (Exception confirmEx)
             {
-                // ConfirmSpot greška nije fatalna za saga - registracija je već potvrđena.
-                // Administrativno treba ručno sinhronizovati EventRegistrationTracker.
+                
                 _logger.LogError(confirmEx,
                     "[Saga {SagaId}] Korak 4b: ConfirmSpot u EventService pukao. " +
                     "Registracija je CONFIRMED ali EventRegistrationTracker može biti nesinhronizovan. " +
@@ -241,7 +218,7 @@ public class RegistrationSagaOrchestrator
                     saga.SagaId, eventId);
             }
 
-            // 4c. Pošalji email notifikaciju (best-effort, greška se loguje ali ne otkazuje sagu)
+            // 4c. Pošalji email notifikaciju
             try
             {
                 await _emailQueuePublisher.EnqueueAsync(new EmailNotificationMessage
@@ -267,7 +244,7 @@ public class RegistrationSagaOrchestrator
             }
 
             _logger.LogInformation(
-                "[Saga {SagaId}] ✅ SAGA ZAVRŠENA USPJEŠNO. RegistrationId={RegId}.",
+                "[Saga {SagaId}] SAGA ZAVRŠENA USPEŠNO. RegistrationId={RegId}.",
                 saga.SagaId, registration.RegistrationId);
 
             return new SagaResult(true, registration.RegistrationId, null);
@@ -290,16 +267,7 @@ public class RegistrationSagaOrchestrator
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // KOMPENZACIONE METODE
-    // Svaka kompenzacija poništava jedan korak Sage.
-    // Grešaka kompenzacije loguju se ali NE bacaju iznimke
-    // (ne možemo kompenzovati kompenzaciju - samo logujemo i nastavljamo).
-    // ════════════════════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Kompenzacija Koraka 1: Briše PENDING registraciju iz baze.
-    /// </summary>
     private async Task CompensateStep1Async(SagaState saga, string reason, CancellationToken cancellationToken)
     {
         _logger.LogInformation(
@@ -331,23 +299,20 @@ public class RegistrationSagaOrchestrator
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "[Saga {SagaId}] ⚠ KOMPENZACIJA KORAKA 1 PUKLA! Registracija {RegId} možda ostaje u bazi. " +
+                "[Saga {SagaId}] KOMPENZACIJA KORAKA 1 PUKLA! Registracija {RegId} možda ostaje u bazi. " +
                 "Potrebna ručna intervencija!",
                 saga.SagaId, saga.RegistrationId);
 
             saga.Status = "Failed";
             saga.UpdatedAt = DateTime.UtcNow;
-            try { await _context.SaveChangesAsync(cancellationToken); } catch { /* nema pomoći */ }
+            try { await _context.SaveChangesAsync(cancellationToken); } catch {  }
         }
     }
 
-    /// <summary>
-    /// Kompenzacija Koraka 2: Otkazuje rezervaciju mjesta u EventService.
-    /// </summary>
     private async Task CompensateStep2Async(SagaState saga, CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "[Saga {SagaId}] ↩ Kompenzacija Koraka 2: Otkazujem rezervaciju mjesta u EventService (EventId={EventId})...",
+            "[Saga {SagaId}] ↩ Kompenzacija Koraka 2: Otkazujem rezervaciju mesta u EventService (EventId={EventId})...",
             saga.SagaId, saga.EventId);
 
         try
@@ -359,15 +324,12 @@ public class RegistrationSagaOrchestrator
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "[Saga {SagaId}] ⚠ KOMPENZACIJA KORAKA 2 PUKLA! Rezervacija možda ostaje u EventService. " +
+                "[Saga {SagaId}] KOMPENZACIJA KORAKA 2 PUKLA! Rezervacija možda ostaje u EventService. " +
                 "Potrebna ručna intervencija za EventId={EventId}!",
                 saga.SagaId, saga.EventId);
         }
     }
 
-    /// <summary>
-    /// Kompenzacija Koraka 3: Otkazuje evidenciju prisustva u DirectoryService.
-    /// </summary>
     private async Task CompensateStep3Async(SagaState saga, CancellationToken cancellationToken)
     {
         _logger.LogInformation(
@@ -385,7 +347,7 @@ public class RegistrationSagaOrchestrator
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "[Saga {SagaId}] ⚠ KOMPENZACIJA KORAKA 3 PUKLA! Prisustvo možda ostaje u DirectoryService. " +
+                "[Saga {SagaId}] KOMPENZACIJA KORAKA 3 PUKLA! Prisustvo možda ostaje u DirectoryService. " +
                 "Potrebna ručna intervencija za LocationId={LocationId}!",
                 saga.SagaId, saga.LocationId);
         }
