@@ -13,13 +13,7 @@ namespace SmartEventPlatform.RegistrationService.Messaging
             CancellationToken cancellationToken);
     }
 
-    /// <summary>
-    /// RabbitMQ publisher za Saga Koreografiju.
-    ///
-    /// Lazy init: konekcija se uspostavlja pri prvom PublishAsync pozivu.
-    /// EnsureInitializedAsync deklarira CIJELU topologiju (exchange + sva 3 queues),
-    /// pa koji god servis prvi se pokrene — topologija je odmah ispravna.
-    /// </summary>
+
     public sealed class SagaChoreographyPublisher : ISagaChoreographyPublisher, IAsyncDisposable
     {
         private readonly SagaChoreographyRabbitMqOptions _opts;
@@ -90,22 +84,22 @@ namespace SmartEventPlatform.RegistrationService.Messaging
 
                 var dlxArgs = new Dictionary<string, object?> { { "x-dead-letter-exchange", _opts.DeadLetterExchange } };
 
-                // --- EventService queue ---
-                await _channel.QueueDeclareAsync(_opts.EventServiceDlq, true, false, false, cancellationToken: cancellationToken);
+                //EventService queue
+                await _channel.QueueDeclareAsync(_opts.EventServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.EventServiceDlq, _opts.DeadLetterExchange, _opts.EventServiceRoutingKey, cancellationToken: cancellationToken);
-                await _channel.QueueDeclareAsync(_opts.EventServiceQueue, true, false, false, arguments: dlxArgs, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.EventServiceQueue, durable: true, exclusive: false, autoDelete: false, arguments: dlxArgs, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.EventServiceQueue, _opts.Exchange, _opts.EventServiceRoutingKey, cancellationToken: cancellationToken);
 
-                // --- DirectoryService queue ---
-                await _channel.QueueDeclareAsync(_opts.DirectoryServiceDlq, true, false, false, cancellationToken: cancellationToken);
+                //DirectoryService queue
+                await _channel.QueueDeclareAsync(_opts.DirectoryServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.DirectoryServiceDlq, _opts.DeadLetterExchange, _opts.DirectoryServiceRoutingKey, cancellationToken: cancellationToken);
-                await _channel.QueueDeclareAsync(_opts.DirectoryServiceQueue, true, false, false, arguments: dlxArgs, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.DirectoryServiceQueue, durable: true, exclusive: false, autoDelete: false, arguments: dlxArgs, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.DirectoryServiceQueue, _opts.Exchange, _opts.DirectoryServiceRoutingKey, cancellationToken: cancellationToken);
 
-                // --- RegistrationService queue ---
-                await _channel.QueueDeclareAsync(_opts.RegistrationServiceDlq, true, false, false, cancellationToken: cancellationToken);
+                //RegistrationService queue
+                await _channel.QueueDeclareAsync(_opts.RegistrationServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.RegistrationServiceDlq, _opts.DeadLetterExchange, _opts.RegistrationServiceRoutingKey, cancellationToken: cancellationToken);
-                await _channel.QueueDeclareAsync(_opts.RegistrationServiceQueue, true, false, false, arguments: dlxArgs, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.RegistrationServiceQueue, durable: true, exclusive: false, autoDelete: false, arguments: dlxArgs, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.RegistrationServiceQueue, _opts.Exchange, _opts.RegistrationServiceRoutingKey, cancellationToken: cancellationToken);
             }
             finally { _initLock.Release(); }

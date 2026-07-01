@@ -56,13 +56,13 @@ namespace SmartEventPlatform.DirectoryService.Messaging
             _connection = await factory.CreateConnectionAsync(stoppingToken);
             _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
-            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
-            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
-            await _channel.QueueDeclareAsync(mq.DirectoryServiceDlq, true, false, false, cancellationToken: stoppingToken);
+            await _channel.QueueDeclareAsync(mq.DirectoryServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.DirectoryServiceDlq, mq.DeadLetterExchange, mq.DirectoryServiceRoutingKey, cancellationToken: stoppingToken);
             await _channel.QueueDeclareAsync(
-                mq.DirectoryServiceQueue, true, false, false,
+                mq.DirectoryServiceQueue, durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", mq.DeadLetterExchange } },
                 cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.DirectoryServiceQueue, mq.Exchange, mq.DirectoryServiceRoutingKey, cancellationToken: stoppingToken);
@@ -104,17 +104,17 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                     if (retryCount >= mq.MaxRetryCount)
                     {
                         _retryCounts.TryRemove(messageId, out int _);
-                        await _channel.BasicNackAsync(args.DeliveryTag, false, requeue: false);
+                        await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false);
                     }
                     else
                     {
                         _retryCounts[messageId] = retryCount + 1;
-                        await _channel.BasicNackAsync(args.DeliveryTag, false, requeue: true);
+                        await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true);
                     }
                 }
             };
 
-            await _channel.BasicConsumeAsync(mq.DirectoryServiceQueue, autoAck: false, consumer, stoppingToken);
+            await _channel.BasicConsumeAsync(mq.DirectoryServiceQueue, autoAck: false, consumer: consumer, stoppingToken);
             _logger.LogInformation("[SagaChoreo-DS] Consumer pokrenut na '{Queue}'.", mq.DirectoryServiceQueue);
             await Task.Delay(Timeout.Infinite, stoppingToken);
         }

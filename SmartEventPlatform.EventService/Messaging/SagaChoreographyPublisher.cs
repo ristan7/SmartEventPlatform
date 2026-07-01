@@ -71,24 +71,24 @@ namespace SmartEventPlatform.EventService.Messaging
                 _connection = await factory.CreateConnectionAsync(cancellationToken);
                 _channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
-                await _channel.ExchangeDeclareAsync(_opts.Exchange, ExchangeType.Direct, true, false, cancellationToken: cancellationToken);
-                await _channel.ExchangeDeclareAsync(_opts.DeadLetterExchange, ExchangeType.Direct, true, false, cancellationToken: cancellationToken);
+                await _channel.ExchangeDeclareAsync(_opts.Exchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: cancellationToken);
+                await _channel.ExchangeDeclareAsync(_opts.DeadLetterExchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: cancellationToken);
 
                 var dlxArgs = new Dictionary<string, object?> { { "x-dead-letter-exchange", _opts.DeadLetterExchange } };
 
-                await _channel.QueueDeclareAsync(_opts.EventServiceDlq, true, false, false, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.EventServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.EventServiceDlq, _opts.DeadLetterExchange, _opts.EventServiceRoutingKey, cancellationToken: cancellationToken);
-                await _channel.QueueDeclareAsync(_opts.EventServiceQueue, true, false, false, arguments: dlxArgs, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.EventServiceQueue, durable: true, exclusive: false, autoDelete: false, arguments: dlxArgs, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.EventServiceQueue, _opts.Exchange, _opts.EventServiceRoutingKey, cancellationToken: cancellationToken);
 
-                await _channel.QueueDeclareAsync(_opts.DirectoryServiceDlq, true, false, false, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.DirectoryServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.DirectoryServiceDlq, _opts.DeadLetterExchange, _opts.DirectoryServiceRoutingKey, cancellationToken: cancellationToken);
-                await _channel.QueueDeclareAsync(_opts.DirectoryServiceQueue, true, false, false, arguments: dlxArgs, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.DirectoryServiceQueue, durable: true, exclusive: false, autoDelete: false, arguments: dlxArgs, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.DirectoryServiceQueue, _opts.Exchange, _opts.DirectoryServiceRoutingKey, cancellationToken: cancellationToken);
 
-                await _channel.QueueDeclareAsync(_opts.RegistrationServiceDlq, true, false, false, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.RegistrationServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.RegistrationServiceDlq, _opts.DeadLetterExchange, _opts.RegistrationServiceRoutingKey, cancellationToken: cancellationToken);
-                await _channel.QueueDeclareAsync(_opts.RegistrationServiceQueue, true, false, false, arguments: dlxArgs, cancellationToken: cancellationToken);
+                await _channel.QueueDeclareAsync(_opts.RegistrationServiceQueue, durable: true, exclusive: false, autoDelete: false, arguments: dlxArgs, cancellationToken: cancellationToken);
                 await _channel.QueueBindAsync(_opts.RegistrationServiceQueue, _opts.Exchange, _opts.RegistrationServiceRoutingKey, cancellationToken: cancellationToken);
             }
             finally { _initLock.Release(); }

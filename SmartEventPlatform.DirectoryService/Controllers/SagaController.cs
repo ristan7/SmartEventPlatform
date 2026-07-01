@@ -5,15 +5,7 @@ using SmartEventPlatform.DirectoryService.Models;
 
 namespace SmartEventPlatform.DirectoryService.Controllers;
 
-/// <summary>
-/// Saga endpointi za DirectoryService.
-///
-/// Ove rute poziva SAMO RegistrationSagaOrchestrator - nisu za direktnu upotrebu.
-///
-/// Tok:
-///   POST  record-attendance  → Korak 3: Zabilježi jednu registraciju na lokaciji
-///   DELETE release-attendance → Korak 3 kompenzacija: Poništi evidenciju
-/// </summary>
+
 [ApiController]
 [Route("api/saga")]
 public class SagaController : ControllerBase
@@ -27,16 +19,7 @@ public class SagaController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Korak 3 Sage: Incrementiraj brojač registracija za lokaciju.
-    ///
-    /// Ako lokacija ne postoji u bazi vraća 404.
-    /// Ako LocationRegistrationTracker za ovu lokaciju već postoji, incrementira ga.
-    /// Ako ne postoji, kreira novi s vrijednosti 1.
-    ///
-    /// Idempotentno: sagaId se koristi samo za logging jer je DirectoryService
-    /// stateless po pitanju SagaId-a (ne čuva koje sage su registrovane).
-    /// </summary>
+    
     [HttpPost("locations/{locationId:long}/record-attendance")]
     public async Task<IActionResult> RecordAttendance(long locationId, [FromQuery] long sagaId)
     {
@@ -44,7 +27,7 @@ public class SagaController : ControllerBase
             "[DirectoryService Saga] RecordAttendance pozvan: LocationId={LocationId}, SagaId={SagaId}.",
             locationId, sagaId);
 
-        // Provjeri da li lokacija postoji
+        // Proveri da li lokacija postoji
         var locationExists = await _context.Locations.AnyAsync(l => l.LocationId == locationId);
         if (!locationExists)
         {
@@ -99,12 +82,7 @@ public class SagaController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Korak 3 kompenzacija: Smanji brojač registracija za lokaciju.
-    ///
-    /// Poziva se kada Korak 4 Sage ne uspije.
-    /// Ako tracker ne postoji ili je već 0, vraća 404 (kompenzacija ignoruje ovu grešku).
-    /// </summary>
+    
     [HttpDelete("locations/{locationId:long}/release-attendance")]
     public async Task<IActionResult> ReleaseAttendance(long locationId, [FromQuery] long sagaId)
     {

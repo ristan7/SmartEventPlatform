@@ -59,14 +59,14 @@ namespace SmartEventPlatform.RegistrationService.Messaging
             _connection = await factory.CreateConnectionAsync(stoppingToken);
             _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
-            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
-            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
-            await _channel.QueueDeclareAsync(mq.RegistrationServiceDlq, true, false, false, cancellationToken: stoppingToken);
+            await _channel.QueueDeclareAsync(mq.RegistrationServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.RegistrationServiceDlq, mq.DeadLetterExchange, mq.RegistrationServiceRoutingKey, cancellationToken: stoppingToken);
 
             await _channel.QueueDeclareAsync(
-                mq.RegistrationServiceQueue, true, false, false,
+                mq.RegistrationServiceQueue, durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", mq.DeadLetterExchange } },
                 cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.RegistrationServiceQueue, mq.Exchange, mq.RegistrationServiceRoutingKey, cancellationToken: stoppingToken);
@@ -136,7 +136,7 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                 }
             };
 
-            await _channel.BasicConsumeAsync(mq.RegistrationServiceQueue, autoAck: false, consumer, stoppingToken);
+            await _channel.BasicConsumeAsync(mq.RegistrationServiceQueue, autoAck: false, consumer: consumer, cancellationToken: stoppingToken);
             _logger.LogInformation("[SagaChoreo-RS] Consumer pokrenut na '{Queue}'.", mq.RegistrationServiceQueue);
             await Task.Delay(Timeout.Infinite, stoppingToken);
         }

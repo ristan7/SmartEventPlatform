@@ -5,16 +5,7 @@ using SmartEventPlatform.EventService.Models;
 
 namespace SmartEventPlatform.EventService.Controllers;
 
-/// <summary>
-/// Saga endpointi za EventService.
-///
-/// Ove rute poziva SAMO RegistrationSagaOrchestrator - nisu za direktnu upotrebu.
-///
-/// Tok:
-///   POST reserve-spot   → Korak 2: Privremena rezervacija mjesta
-///   POST confirm-spot   → Korak 4: Potvrda (prebacuje iz SagaSpotReservations u EventRegistrationTracker)
-///   DELETE release-spot → Korak 2 kompenzacija: Otkazuje privremenu rezervaciju
-/// </summary>
+
 [ApiController]
 [Route("api/saga")]
 public class SagaController : ControllerBase
@@ -28,17 +19,7 @@ public class SagaController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Korak 2 Sage: Privremeno rezerviši mjesto za događaj.
-    ///
-    /// Provjera kapaciteta uzima u obzir i:
-    ///   - Potvrđene registracije (EventRegistrationTracker)
-    ///   - Postojeće privremene Saga rezervacije (SagaSpotReservations)
-    ///
-    /// Vraća 200 OK ako je rezervacija uspješna.
-    /// Vraća 409 Conflict ako nema slobodnih mjesta.
-    /// Vraća 404 NotFound ako događaj ne postoji.
-    /// </summary>
+    
     [HttpPost("events/{eventId:long}/reserve-spot")]
     public async Task<IActionResult> ReserveSpot(long eventId, [FromQuery] long sagaId)
     {
@@ -46,7 +27,7 @@ public class SagaController : ControllerBase
             "[EventService Saga] ReserveSpot pozvan: EventId={EventId}, SagaId={SagaId}.",
             eventId, sagaId);
 
-        // Provjeri da li događaj postoji
+        // Proveri da li događaj postoji
         var eventEntity = await _context.Events.FindAsync(eventId);
         if (eventEntity == null)
         {
@@ -54,7 +35,7 @@ public class SagaController : ControllerBase
             return NotFound($"Event {eventId} not found.");
         }
 
-        // Provjeri da li ova Saga već ima rezervaciju (idempotentnost)
+        // Proveri da li ova Saga već ima rezervaciju (idempotentnost)
         var existingReservation = await _context.SagaSpotReservations
             .FirstOrDefaultAsync(r => r.SagaId == sagaId);
 
@@ -66,7 +47,7 @@ public class SagaController : ControllerBase
             return Ok();
         }
 
-        // Provjeri kapacitet: potvrđene + privremene rezervacije
+        // Proveri kapacitet: potvrđene + privremene rezervacije
         var confirmedCount = await _context.EventRegistrationTrackers
             .Where(t => t.EventId == eventId)
             .Select(t => t.RegistrationCount)
@@ -85,7 +66,7 @@ public class SagaController : ControllerBase
         if (totalOccupied >= eventEntity.LocationCapacitySnapshot)
         {
             _logger.LogWarning(
-                "[EventService Saga] EventId={EventId} nema slobodnih mjesta " +
+                "[EventService Saga] EventId={EventId} nema slobodnih mesta " +
                 "(kapacitet={Cap}, zauzeto={Total}).",
                 eventId, eventEntity.LocationCapacitySnapshot, totalOccupied);
             return Conflict("No available spots for this event.");
@@ -107,14 +88,7 @@ public class SagaController : ControllerBase
         return Ok();
     }
 
-    /// <summary>
-    /// Korak 4 Sage: Potvrdi rezervaciju mjesta.
-    ///
-    /// Briše privremenu rezervaciju iz SagaSpotReservations
-    /// i incrementira EventRegistrationTracker (stvarna evidencija).
-    ///
-    /// Poziva se samo kada je Saga uspješno završena.
-    /// </summary>
+    
     [HttpPost("events/{eventId:long}/confirm-spot")]
     public async Task<IActionResult> ConfirmSpot(long eventId, [FromQuery] long sagaId)
     {
@@ -178,14 +152,7 @@ public class SagaController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Korak 2 kompenzacija: Otkaži privremenu rezervaciju mjesta.
-    ///
-    /// Briše rezervaciju iz SagaSpotReservations.
-    /// Poziva se ako Korak 3 ili Korak 4 Sage ne uspiju.
-    ///
-    /// Vraća 200 OK čak i ako rezervacija ne postoji (idempotentnost).
-    /// </summary>
+    
     [HttpDelete("events/{eventId:long}/release-spot")]
     public async Task<IActionResult> ReleaseSpot(long eventId, [FromQuery] long sagaId)
     {

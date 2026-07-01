@@ -56,13 +56,13 @@ namespace SmartEventPlatform.EventService.Messaging
             _connection = await factory.CreateConnectionAsync(stoppingToken);
             _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
-            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
-            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
-            await _channel.QueueDeclareAsync(mq.EventServiceDlq, true, false, false, cancellationToken: stoppingToken);
+            await _channel.QueueDeclareAsync(mq.EventServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.EventServiceDlq, mq.DeadLetterExchange, mq.EventServiceRoutingKey, cancellationToken: stoppingToken);
             await _channel.QueueDeclareAsync(
-                mq.EventServiceQueue, true, false, false,
+                mq.EventServiceQueue, durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", mq.DeadLetterExchange } },
                 cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.EventServiceQueue, mq.Exchange, mq.EventServiceRoutingKey, cancellationToken: stoppingToken);
