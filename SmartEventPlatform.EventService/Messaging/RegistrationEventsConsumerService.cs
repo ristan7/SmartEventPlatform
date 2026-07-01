@@ -19,8 +19,6 @@ namespace SmartEventPlatform.EventService.Messaging
         private IConnection? _connection;
         private IChannel? _channel;
 
-        // Prati broj neuspjesnih pokusaja po MessageId-u.
-        // Nakon MaxRetryCount -> BasicNack(requeue: false) -> DLQ.
         private readonly ConcurrentDictionary<string, int> _retryCounts = new();
 
         public RegistrationEventsConsumerService(
@@ -52,12 +50,11 @@ namespace SmartEventPlatform.EventService.Messaging
                 exchange: mq.Exchange, type: ExchangeType.Direct,
                 durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
-            // Dead Letter Exchange
             await _channel.ExchangeDeclareAsync(
                 exchange: mq.DeadLetterExchange, type: ExchangeType.Direct,
                 durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
-            // Dead Letter Queue
+
             await _channel.QueueDeclareAsync(
                 queue: mq.DeadLetterQueue,
                 durable: true, exclusive: false, autoDelete: false,
@@ -67,17 +64,13 @@ namespace SmartEventPlatform.EventService.Messaging
                 queue: mq.DeadLetterQueue, exchange: mq.DeadLetterExchange,
                 routingKey: mq.RoutingKey, cancellationToken: stoppingToken);
 
-            // Glavni queue s x-dead-letter-exchange argumentom.
-            // VAZNO: isti argument mora biti i u RegistrationService/RabbitMqPublisher.cs
-            // jer oba deklarisu isti queue — RabbitMQ zahtjeva konzistentnost.
-            var queueArgs = new Dictionary<string, object?>
-            {
-                { "x-dead-letter-exchange", mq.DeadLetterExchange }
-            };
 
             await _channel.QueueDeclareAsync(
                 queue: mq.Queue, durable: true, exclusive: false,
-                autoDelete: false, arguments: queueArgs, cancellationToken: stoppingToken);
+                autoDelete: false, arguments: new Dictionary<string, object?>
+            {
+                { "x-dead-letter-exchange", mq.DeadLetterExchange }
+            }, cancellationToken: stoppingToken);
 
             await _channel.QueueBindAsync(
                 queue: mq.Queue, exchange: mq.Exchange,

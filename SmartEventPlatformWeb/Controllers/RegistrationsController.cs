@@ -23,9 +23,8 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var registrations = await GetListAsync<RegistrationDto>(client, "api/registrations");
-                var registrations = await ApiHttpHelper.GetListAsync<RegistrationDto>(client, "api/registrations");
+                var client = CreateClient();
+                var registrations = await ApiHttpHelper.GetListAsync<RegistrationDto>(client, "gateway/registrations");
 
                 var vm = registrations
                     .OrderBy(r => r.RegistrationDate)
@@ -58,21 +57,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Details(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var registration = await GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id.Value}");
-                var registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id.Value}");
+                var client = CreateClient();
+                var registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"gateway/registrations/{id.Value}");
 
-                if (registration == null)
-                {
-                    return NotFound();
-                }
+                if (registration == null) return NotFound();
 
                 var vm = new RegistrationDetailsViewModel
                 {
@@ -102,15 +94,9 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Create(long? eventId)
         {
-            var vm = new RegistrationCreateViewModel
-            {
-                RegistrationDate = DateTime.Now
-            };
+            var vm = new RegistrationCreateViewModel { RegistrationDate = DateTime.Now };
 
-            if (eventId.HasValue)
-            {
-                vm.EventId = eventId.Value;
-            }
+            if (eventId.HasValue) vm.EventId = eventId.Value;
 
             try
             {
@@ -139,7 +125,7 @@ namespace SmartEventPlatformWeb.Controllers
         {
             if (!ModelState.IsValid)
             {
-                await PopulateRegistrationCreateFormListsAsync(vm);
+                await PopulateCreateFormListsAsync(vm);
                 return View(vm);
             }
 
@@ -152,14 +138,13 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //await PostAndReadIdAsync(client, "api/registrations", dto);
-                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/registrations", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "gateway/registrations", dto);
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The registration could not be created.");
-                    await PopulateRegistrationCreateFormListsAsync(vm);
+                    await PopulateCreateFormListsAsync(vm);
                     return View(vm);
                 }
 
@@ -178,27 +163,20 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the registration.");
             }
 
-            await PopulateRegistrationCreateFormListsAsync(vm);
+            await PopulateCreateFormListsAsync(vm);
             return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var registration = await GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id.Value}");
-                var registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id.Value}");
+                var client = CreateClient();
+                var registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"gateway/registrations/{id.Value}");
 
-                if (registration == null)
-                {
-                    return NotFound();
-                }
+                if (registration == null) return NotFound();
 
                 var vm = new RegistrationEditViewModel
                 {
@@ -232,14 +210,11 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(long id, RegistrationEditViewModel vm)
         {
-            if (id != vm.RegistrationId)
-            {
-                return NotFound();
-            }
+            if (id != vm.RegistrationId) return NotFound();
 
             if (!ModelState.IsValid)
             {
-                await PopulateRegistrationEditFormListsAsync(vm);
+                await PopulateEditFormListsAsync(vm);
                 return View(vm);
             }
 
@@ -252,14 +227,13 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //await PutAsync(client, $"api/registrations/{id}", dto);
-                var result = await ApiHttpHelper.PutAsync(client, $"api/registrations/{id}", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PutAsync(client, $"gateway/registrations/{id}", dto);
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The registration could not be updated.");
-                    await PopulateRegistrationEditFormListsAsync(vm);
+                    await PopulateEditFormListsAsync(vm);
                     return View(vm);
                 }
 
@@ -278,31 +252,22 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the registration.");
             }
 
-            await PopulateRegistrationEditFormListsAsync(vm);
+            await PopulateEditFormListsAsync(vm);
             return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var registration = await GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id.Value}");
-                var registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id.Value}");
+                var client = CreateClient();
+                var registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"gateway/registrations/{id.Value}");
 
-                if (registration == null)
-                {
-                    return NotFound();
-                }
+                if (registration == null) return NotFound();
 
-                var vm = MapToDeleteViewModel(registration);
-
-                return View(vm);
+                return View(MapToDeleteViewModel(registration));
             }
             catch (TaskCanceledException)
             {
@@ -328,24 +293,17 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateRegistrationServiceClient();
+                var client = CreateClient();
+                registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"gateway/registrations/{id}");
 
-                //registration = await GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id}");
-                registration = await ApiHttpHelper.GetNullableAsync<RegistrationDto>(client, $"api/registrations/{id}");
+                if (registration == null) return NotFound();
 
-                if (registration == null)
-                {
-                    return NotFound();
-                }
-
-                //await DeleteAsync(client, $"api/registrations/{id}");
-                var result = await ApiHttpHelper.DeleteAsync(client, $"api/registrations/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"gateway/registrations/{id}");
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The registration could not be deleted.");
-                    var deleteVm = MapToDeleteViewModel(registration);
-                    return View("Delete", deleteVm);
+                    return View("Delete", MapToDeleteViewModel(registration));
                 }
 
                 return RedirectToAction(nameof(Index));
@@ -363,20 +321,15 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the registration.");
             }
 
-            if (registration == null)
-            {
-                return RedirectToAction(nameof(Index));
-            }
+            if (registration == null) return RedirectToAction(nameof(Index));
 
-            var vm = MapToDeleteViewModel(registration);
-            return View("Delete", vm);
+            return View("Delete", MapToDeleteViewModel(registration));
         }
 
         private async Task<List<SelectListItem>> GetEventsSelectListAsync(long? selectedId = null)
         {
-            var client = CreateEventServiceClient();
-            //var events = await GetListAsync<EventDto>(client, "api/events");
-            var events = await ApiHttpHelper.GetListAsync<EventDto>(client, "api/events");
+            var client = CreateClient();
+            var events = await ApiHttpHelper.GetListAsync<EventDto>(client, "gateway/events");
 
             return events
                 .OrderBy(e => e.EventDateTime)
@@ -391,9 +344,8 @@ namespace SmartEventPlatformWeb.Controllers
 
         private async Task<List<SelectListItem>> GetParticipantsSelectListAsync(long? selectedId = null)
         {
-            var client = CreateRegistrationServiceClient();
-            //var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
-            var participants = await ApiHttpHelper.GetListAsync<ParticipantDto>(client, "api/participants");
+            var client = CreateClient();
+            var participants = await ApiHttpHelper.GetListAsync<ParticipantDto>(client, "gateway/participants");
 
             return participants
                 .OrderBy(p => p.LastName)
@@ -407,7 +359,7 @@ namespace SmartEventPlatformWeb.Controllers
                 .ToList();
         }
 
-        private async Task PopulateRegistrationCreateFormListsAsync(RegistrationCreateViewModel vm)
+        private async Task PopulateCreateFormListsAsync(RegistrationCreateViewModel vm)
         {
             try
             {
@@ -421,7 +373,7 @@ namespace SmartEventPlatformWeb.Controllers
             }
         }
 
-        private async Task PopulateRegistrationEditFormListsAsync(RegistrationEditViewModel vm)
+        private async Task PopulateEditFormListsAsync(RegistrationEditViewModel vm)
         {
             try
             {
@@ -435,26 +387,16 @@ namespace SmartEventPlatformWeb.Controllers
             }
         }
 
-        private static RegistrationDeleteViewModel MapToDeleteViewModel(RegistrationDto registration)
-        {
-            return new RegistrationDeleteViewModel
+        private static RegistrationDeleteViewModel MapToDeleteViewModel(RegistrationDto r) =>
+            new RegistrationDeleteViewModel
             {
-                RegistrationId = registration.RegistrationId,
-                EventName = registration.EventName,
-                ParticipantFullName = registration.ParticipantFullName,
-                RegistrationDate = registration.RegistrationDate
+                RegistrationId = r.RegistrationId,
+                EventName = r.EventName,
+                ParticipantFullName = r.ParticipantFullName,
+                RegistrationDate = r.RegistrationDate
             };
-        }
 
-        private HttpClient CreateEventServiceClient()
-        {
-            return _httpClientFactory.CreateClient("EventService");
-        }
-
-        private HttpClient CreateRegistrationServiceClient()
-        {
-            return _httpClientFactory.CreateClient("RegistrationService");
-        }
-
+        private HttpClient CreateClient() =>
+            _httpClientFactory.CreateClient("ApiGateway");
     }
 }

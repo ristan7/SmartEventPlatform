@@ -35,9 +35,6 @@ namespace SmartEventPlatform.EventService.Messaging
                     {
                         try
                         {
-                            // The routing key is stored on the message itself.
-                            // This publisher has no routing logic — it reads the key
-                            // that was set when the outbox message was created.
                             await publisher.PublishAsync(
                                 payload: message.Payload,
                                 messageId: message.MessageId,

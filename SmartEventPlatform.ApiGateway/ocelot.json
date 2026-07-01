@@ -1,0 +1,565 @@
+{
+  "Routes": [
+
+    // =================================================================
+    // FUNCTIONALITY 1: ROUTING
+    // =================================================================
+
+    // -----------------------------------------------------------------
+    // EVENTS - GET list (with caching)
+    // FUNCTIONALITY 3: CACHING (TtlSeconds 60)
+    // FUNCTIONALITY 4: LOAD BALANCING (LeastConnection)
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/events",
+      "DownstreamPathTemplate": "/api/events",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ],
+      "CacheOptions": {
+        "TtlSeconds": 60,
+        "Region": "events"
+      },
+      "LoadBalancerOptions": {
+        "Type": "LeastConnection"
+      },
+      "Key": "events-list"
+    },
+
+    // -----------------------------------------------------------------
+    // EVENTS - GET upcoming
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/events/upcoming",
+      "DownstreamPathTemplate": "/api/events/upcoming",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENTS - GET single (with caching)
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/events/{id}",
+      "DownstreamPathTemplate": "/api/events/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ],
+      "CacheOptions": {
+        "TtlSeconds": 60,
+        "Region": "events"
+      }
+    },
+
+    // -----------------------------------------------------------------
+    // EVENTS - POST create
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Post" ],
+      "UpstreamPathTemplate": "/gateway/events",
+      "DownstreamPathTemplate": "/api/events",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENTS - PUT update
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Put" ],
+      "UpstreamPathTemplate": "/gateway/events/{id}",
+      "DownstreamPathTemplate": "/api/events/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENTS - DELETE
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Delete" ],
+      "UpstreamPathTemplate": "/gateway/events/{id}",
+      "DownstreamPathTemplate": "/api/events/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENT TYPES - GET list (with caching)
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/eventtypes",
+      "DownstreamPathTemplate": "/api/eventtypes",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ],
+      "CacheOptions": {
+        "TtlSeconds": 120,
+        "Region": "eventtypes"
+      }
+    },
+    {
+      "UpstreamHttpMethod": [ "Get", "Put", "Delete" ],
+      "UpstreamPathTemplate": "/gateway/eventtypes/{id}",
+      "DownstreamPathTemplate": "/api/eventtypes/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Post" ],
+      "UpstreamPathTemplate": "/gateway/eventtypes",
+      "DownstreamPathTemplate": "/api/eventtypes",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENT SPEAKERS - GET by speaker (must be BEFORE /{id} route)
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/eventspeakers/by-speaker/{speakerId}",
+      "DownstreamPathTemplate": "/api/eventspeakers/by-speaker/{speakerId}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENT SPEAKERS - GET list
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/eventspeakers",
+      "DownstreamPathTemplate": "/api/eventspeakers",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENT SPEAKERS - GET single / PUT / DELETE by single ID
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get", "Put", "Delete" ],
+      "UpstreamPathTemplate": "/gateway/eventspeakers/{id}",
+      "DownstreamPathTemplate": "/api/eventspeakers/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // EVENT SPEAKERS - POST create
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Post" ],
+      "UpstreamPathTemplate": "/gateway/eventspeakers",
+      "DownstreamPathTemplate": "/api/eventspeakers",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ]
+    },
+
+    // =================================================================
+    // DIRECTORY SERVICE - LOCATIONS
+    // FUNCTIONALITY 3: CACHING on GET list
+    // =================================================================
+
+    // -----------------------------------------------------------------
+    // LOCATIONS - GET list (with caching, Key for aggregation)
+    // FUNCTIONALITY 5: API COMPOSITION - used by /gateway/dashboard
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/locations",
+      "DownstreamPathTemplate": "/api/locations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ],
+      "CacheOptions": {
+        "TtlSeconds": 120,
+        "Region": "locations"
+      },
+      "Key": "locations-list"
+    },
+
+    // -----------------------------------------------------------------
+    // LOCATIONS - GET single
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/locations/{id}",
+      "DownstreamPathTemplate": "/api/locations/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // LOCATIONS - POST create
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Post" ],
+      "UpstreamPathTemplate": "/gateway/locations",
+      "DownstreamPathTemplate": "/api/locations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // LOCATIONS - PUT / DELETE
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Put", "Delete" ],
+      "UpstreamPathTemplate": "/gateway/locations/{id}",
+      "DownstreamPathTemplate": "/api/locations/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // SPEAKERS - GET list (with caching)
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/speakers",
+      "DownstreamPathTemplate": "/api/speakers",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ],
+      "CacheOptions": {
+        "TtlSeconds": 120,
+        "Region": "speakers"
+      }
+    },
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/speakers/{id}",
+      "DownstreamPathTemplate": "/api/speakers/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Post" ],
+      "UpstreamPathTemplate": "/gateway/speakers",
+      "DownstreamPathTemplate": "/api/speakers",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Put", "Delete" ],
+      "UpstreamPathTemplate": "/gateway/speakers/{id}",
+      "DownstreamPathTemplate": "/api/speakers/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ]
+    },
+
+    // =================================================================
+    // REGISTRATION SERVICE
+    // =================================================================
+
+    // -----------------------------------------------------------------
+    // AVAILABLE EVENTS
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/availableevents",
+      "DownstreamPathTemplate": "/api/availableevents",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // REGISTRATIONS - CRUD
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/registrations",
+      "DownstreamPathTemplate": "/api/registrations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/registrations/{id}",
+      "DownstreamPathTemplate": "/api/registrations/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Post" ],
+      "UpstreamPathTemplate": "/gateway/registrations",
+      "DownstreamPathTemplate": "/api/registrations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Put" ],
+      "UpstreamPathTemplate": "/gateway/registrations/{id}",
+      "DownstreamPathTemplate": "/api/registrations/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Delete" ],
+      "UpstreamPathTemplate": "/gateway/registrations/{id}",
+      "DownstreamPathTemplate": "/api/registrations/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // PARTICIPANTS - CRUD
+    // -----------------------------------------------------------------
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/gateway/participants",
+      "DownstreamPathTemplate": "/api/participants",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Get", "Put", "Delete" ],
+      "UpstreamPathTemplate": "/gateway/participants/{id}",
+      "DownstreamPathTemplate": "/api/participants/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+    {
+      "UpstreamHttpMethod": [ "Post" ],
+      "UpstreamPathTemplate": "/gateway/participants",
+      "DownstreamPathTemplate": "/api/participants",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    },
+
+    // =================================================================
+    // FUNCTIONALITY 10: API VERSIONING
+    // Client uses /api/v1/xxx, gateway forwards to /api/xxx on the service.
+    // =================================================================
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/api/v1/events",
+      "DownstreamPathTemplate": "/api/events",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5022
+        }
+      ],
+      "CacheOptions": {
+        "TtlSeconds": 60,
+        "Region": "events"
+      }
+    },
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/api/v1/locations",
+      "DownstreamPathTemplate": "/api/locations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5103
+        }
+      ],
+      "CacheOptions": {
+        "TtlSeconds": 120,
+        "Region": "locations"
+      }
+    },
+    {
+      "UpstreamHttpMethod": [ "Get" ],
+      "UpstreamPathTemplate": "/api/v1/registrations",
+      "DownstreamPathTemplate": "/api/registrations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ]
+    }
+
+  ],
+
+  // =================================================================
+  // FUNCTIONALITY 5: API COMPOSITION (Aggregation)
+  // GET /gateway/dashboard combines events-list + locations-list.
+  // =================================================================
+  "Aggregates": [
+    {
+      "UpstreamPathTemplate": "/gateway/dashboard",
+      "RouteKeys": [ "events-list", "locations-list" ]
+    }
+  ],
+
+  // =================================================================
+  // GLOBAL CONFIGURATION
+  // =================================================================
+  "GlobalConfiguration": {
+    "BaseUrl": "http://localhost:5200",
+
+    // -----------------------------------------------------------------
+    // FUNCTIONALITY 2: RATE LIMITING
+    // Max 30 requests per 30 seconds per client (identified by X-ClientId header).
+    // Clients that exceed the limit receive HTTP 429 Too Many Requests.
+    // -----------------------------------------------------------------
+    "RateLimitOptions": {
+      "ClientIdHeader": "X-ClientId",
+      "Limit": 30,
+      "Period": "30s",
+      "PeriodTimespan": 30,
+      "StatusCode": 429,
+      "QuotaExceededMessage": "API rate limit exceeded! Maximum {0} requests allowed per {1} period.",
+      "HttpStatusCode": 429,
+      "DisableRateLimitHeaders": false
+    }
+  }
+}

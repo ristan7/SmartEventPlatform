@@ -67,8 +67,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                     exchange: _options.Exchange, type: ExchangeType.Direct,
                     durable: true, autoDelete: false, cancellationToken: cancellationToken);
 
-                // DLX deklarisan i ovdje jer publisher takodjer kreira queue.
-                // Konzistentnost argumenata je obavezna na obje strane.
                 await _channel.ExchangeDeclareAsync(
                     exchange: _options.DeadLetterExchange, type: ExchangeType.Direct,
                     durable: true, autoDelete: false, cancellationToken: cancellationToken);

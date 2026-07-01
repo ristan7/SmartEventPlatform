@@ -13,8 +13,6 @@
         public string RoutingKey { get; set; } = "registration.event-usage.changed";
         public ushort PrefetchCount { get; set; } = 1;
 
-        // Poruke koje ne mogu biti obradjene ni nakon MaxRetryCount pokusaja
-        // se usmjeravaju u DeadLetterQueue putem BasicNack(requeue: false).
         public string DeadLetterExchange { get; set; } = "smart-event.dlx";
         public string DeadLetterQueue { get; set; } = "event.registration-usage.dlq";
         public int MaxRetryCount { get; set; } = 10;

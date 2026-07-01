@@ -20,9 +20,8 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //var locations = await GetListAsync<LocationDto>(client, "api/locations");
-                var locations = await ApiHttpHelper.GetListAsync<LocationDto>(client, "api/locations");
+                var client = CreateClient();
+                var locations = await ApiHttpHelper.GetListAsync<LocationDto>(client, "gateway/locations");
 
                 var vm = locations
                     .OrderBy(l => l.LocationName)
@@ -55,21 +54,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Details(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
-                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var client = CreateClient();
+                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"gateway/locations/{id.Value}");
 
-                if (location == null)
-                {
-                    return NotFound();
-                }
+                if (location == null) return NotFound();
 
                 var vm = new LocationDetailsViewModel
                 {
@@ -106,10 +98,7 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(LocationCreateViewModel vm)
         {
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
+            if (!ModelState.IsValid) return View(vm);
 
             var dto = new LocationDto
             {
@@ -120,9 +109,8 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //await PostAndReadIdAsync(client, "api/locations", dto);
-                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/locations", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "gateway/locations", dto);
 
                 if (!result.Success)
                 {
@@ -150,21 +138,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
-                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var client = CreateClient();
+                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"gateway/locations/{id.Value}");
 
-                if (location == null)
-                {
-                    return NotFound();
-                }
+                if (location == null) return NotFound();
 
                 var vm = new LocationEditViewModel
                 {
@@ -196,15 +177,8 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(long id, LocationEditViewModel vm)
         {
-            if (id != vm.LocationId)
-            {
-                return NotFound();
-            }
-
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
+            if (id != vm.LocationId) return NotFound();
+            if (!ModelState.IsValid) return View(vm);
 
             var dto = new LocationDto
             {
@@ -216,9 +190,8 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //await PutAsync(client, $"api/locations/{id}", dto);
-                var result = await ApiHttpHelper.PutAsync(client, $"api/locations/{id}", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PutAsync(client, $"gateway/locations/{id}", dto);
 
                 if (!result.Success)
                 {
@@ -246,25 +219,16 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Delete(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //var location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
-                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id.Value}");
+                var client = CreateClient();
+                var location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"gateway/locations/{id.Value}");
 
-                if (location == null)
-                {
-                    return NotFound();
-                }
+                if (location == null) return NotFound();
 
-                var vm = MapToDeleteViewModel(location);
-
-                return View(vm);
+                return View(MapToDeleteViewModel(location));
             }
             catch (TaskCanceledException)
             {
@@ -290,24 +254,17 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateDirectoryServiceClient();
+                var client = CreateClient();
+                location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"gateway/locations/{id}");
 
-                //location = await GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
-                location = await ApiHttpHelper.GetNullableAsync<LocationDto>(client, $"api/locations/{id}");
+                if (location == null) return NotFound();
 
-                if (location == null)
-                {
-                    return NotFound();
-                }
-
-                //await DeleteAsync(client, $"api/locations/{id}");
-                var result = await ApiHttpHelper.DeleteAsync(client, $"api/locations/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"gateway/locations/{id}");
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The location could not be deleted.");
-                    var deleteVm = MapToDeleteViewModel(location);
-                    return View("Delete", deleteVm);
+                    return View("Delete", MapToDeleteViewModel(location));
                 }
 
                 return RedirectToAction(nameof(Index));
@@ -325,29 +282,21 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the location.");
             }
 
-            if (location == null)
-            {
-                return RedirectToAction(nameof(Index));
-            }
+            if (location == null) return RedirectToAction(nameof(Index));
 
-            var vm = MapToDeleteViewModel(location);
-            return View("Delete", vm);
+            return View("Delete", MapToDeleteViewModel(location));
         }
 
-        private HttpClient CreateDirectoryServiceClient()
-        {
-            return _httpClientFactory.CreateClient("DirectoryService");
-        }
-
-        private static LocationDeleteViewModel MapToDeleteViewModel(LocationDto location)
-        {
-            return new LocationDeleteViewModel
+        private static LocationDeleteViewModel MapToDeleteViewModel(LocationDto location) =>
+            new LocationDeleteViewModel
             {
                 LocationId = location.LocationId,
                 LocationName = location.LocationName,
                 Address = location.Address,
                 Capacity = location.Capacity
             };
-        }
+
+        private HttpClient CreateClient() =>
+            _httpClientFactory.CreateClient("ApiGateway");
     }
 }

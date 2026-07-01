@@ -55,10 +55,6 @@ namespace SmartEventPlatform.EventService.Messaging
                 cancellationToken: cancellationToken);
         }
 
-        /// <summary>
-        /// Publisher deklarise iste queues kao i consumer strana (DirectoryService).
-        /// Obje strane MORAJU imati identicne argumente — razlika uzrokuje PRECONDITION_FAILED.
-        /// </summary>
         private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
         {
             if (_channel is not null) return;
@@ -79,7 +75,7 @@ namespace SmartEventPlatform.EventService.Messaging
                     exchange: _options.DeadLetterExchange, type: ExchangeType.Direct,
                     durable: true, autoDelete: false, cancellationToken: cancellationToken);
 
-                // -- Location usage --
+                //Location deo
                 await _channel.QueueDeclareAsync(
                     queue: _options.LocationUsageDlq,
                     durable: true, exclusive: false, autoDelete: false,
@@ -97,7 +93,7 @@ namespace SmartEventPlatform.EventService.Messaging
                     queue: _options.LocationUsageQueue, exchange: _options.Exchange,
                     routingKey: _options.LocationUsageRoutingKey, cancellationToken: cancellationToken);
 
-                // -- Speaker usage --
+                //Spekaer deo
                 await _channel.QueueDeclareAsync(
                     queue: _options.SpeakerUsageDlq,
                     durable: true, exclusive: false, autoDelete: false,

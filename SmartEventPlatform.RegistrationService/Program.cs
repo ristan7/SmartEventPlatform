@@ -45,6 +45,7 @@ namespace SmartEventPlatform.RegistrationService
                 builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<IRabbitMqEventQueryClient, RabbitMqEventQueryClient>();
 
+            //mejlovi
             builder.Services.Configure<EmailRabbitMqOptions>(
                 builder.Configuration.GetSection(EmailRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<IEmailQueuePublisher, EmailQueuePublisher>();

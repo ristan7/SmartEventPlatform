@@ -63,7 +63,7 @@ namespace SmartEventPlatform.DirectoryService.Messaging
                 queue: mq.DeadLetterQueue, exchange: mq.DeadLetterExchange,
                 routingKey: mq.RoutingKey, cancellationToken: stoppingToken);
 
-            // Isti x-dead-letter-exchange argument kao u EventService/RabbitMqPublisher.cs
+            
             await _channel.QueueDeclareAsync(
                 queue: mq.Queue, durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", mq.DeadLetterExchange } },

@@ -9,12 +9,6 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.EventService.Messaging
 {
-    /// <summary>
-    /// Server strana Request-Reply obrasca.
-    /// Slusa zahtjeve RegistrationService-a na RequestQueue,
-    /// dohvata event iz baze i salje odgovor na ReplyTo adresu
-    /// iz zaglavlja poruke s istim CorrelationId-om.
-    /// </summary>
     public sealed class EventQueryConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
@@ -47,12 +41,9 @@ namespace SmartEventPlatform.EventService.Messaging
             };
 
             _connection = await factory.CreateConnectionAsync(stoppingToken);
-            // Dva odvojena kanala: jedan za consume, drugi za publish odgovora
             _consumerChannel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
             _publishChannel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
-            // durable=false: kratkotrajna query infrastruktura;
-            // ako EventService restartuje, RegistrationService dobija timeout i pada na HTTP fallback
             await _consumerChannel.QueueDeclareAsync(
                 queue: mq.RequestQueue,
                 durable: false, exclusive: false, autoDelete: false,
@@ -122,9 +113,8 @@ namespace SmartEventPlatform.EventService.Messaging
                     ContentType = "application/json"
                 };
 
-                // Saljemo odgovor na ReplyTo queue koji je postavio RegistrationService
                 await _publishChannel.BasicPublishAsync(
-                    exchange: string.Empty,  // default exchange — direktno po imenu queue-a
+                    exchange: string.Empty,
                     routingKey: replyTo,
                     mandatory: false,
                     basicProperties: replyProps,

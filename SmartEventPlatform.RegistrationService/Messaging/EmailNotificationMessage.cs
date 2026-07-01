@@ -1,10 +1,5 @@
 ﻿namespace SmartEventPlatform.RegistrationService.Messaging
 {
-    /// <summary>
-    /// Payload emaila koji se stavlja na email queue pri kreiranju registracije.
-    /// Sadrzi sve podatke potrebne za generisanje emaila — worker ne treba
-    /// dodatne pozive bazi ili servisima.
-    /// </summary>
     public class EmailNotificationMessage
     {
         public long RegistrationId { get; set; }
