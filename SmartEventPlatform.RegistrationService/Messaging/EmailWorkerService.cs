@@ -6,19 +6,6 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.RegistrationService.Messaging
 {
-    /// <summary>
-    /// Konzumira emailove iz queue-a i "salje" ih uz sliding window rate limiting.
-    ///
-    /// Sliding Window (max N emailova u 60s):
-    ///   - Queue&lt;DateTime&gt; cuva timestampe poslatih emailova.
-    ///   - Prije svakog slanja: izbaci timestampe starije od 60s.
-    ///   - Ako je count &lt; limit: salji odmah.
-    ///   - Ako je count == limit: cekaj dok najstariji timestamp ne ispadne iz prozora.
-    ///
-    /// prefetchCount=1 osigurava da RabbitMQ ne salje novu poruku dok worker
-    /// ceka na rate limit slot — sto znaci da cekanje u handleru efektivno
-    /// usporava konzumiranje bez ikakve aktivne petlje.
-    /// </summary>
     public sealed class EmailWorkerService : BackgroundService
     {
         private readonly IOptions<EmailRabbitMqOptions> _options;
@@ -94,8 +81,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                     return;
                 }
 
-                // Cekamo slobodan slot — sa prefetchCount=1 ovo efektivno
-                // kontrolise koliko brzo konzumiramo iz queue-a
                 await WaitForRateLimitSlotAsync(mq.MaxEmailsPerMinute, cancellationToken);
 
                 await SaveEmailToFileAsync(message, mq.OutboxFolder, cancellationToken);
@@ -129,11 +114,12 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                     var now = DateTime.UtcNow;
                     var windowStart = now.AddMinutes(-1);
 
+                    //izbacujemo najstarija vremena koja su iznad 60 sek
                     while (_sentTimestamps.Count > 0 && _sentTimestamps.Peek() < windowStart)
                         _sentTimestamps.Dequeue();
 
                     if (_sentTimestamps.Count < maxPerMinute)
-                        return;  // ima mjesta
+                        return;  // ima mesta
 
                     var oldest = _sentTimestamps.Peek();
                     waitTime = oldest.AddMinutes(1) - now;

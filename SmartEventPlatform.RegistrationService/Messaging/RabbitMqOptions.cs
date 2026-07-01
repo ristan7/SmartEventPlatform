@@ -12,8 +12,6 @@
         public string RoutingKey { get; set; } = "registration.event-usage.changed";
         public string Queue { get; set; } = "event.registration-usage.queue";
 
-        // Mora biti konzistentan s EventService/ConsumerRabbitMqOptions.cs —
-        // oba deklarisu isti queue i moraju imati iste argumente.
         public string DeadLetterExchange { get; set; } = "smart-event.dlx";
     }
 }

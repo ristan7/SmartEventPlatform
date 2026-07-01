@@ -13,17 +13,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
         Task<EventInfoReply?> QueryEventInfoAsync(long eventId, CancellationToken cancellationToken);
     }
 
-    /// <summary>
-    /// Klijentska strana Request-Reply obrasca.
-    ///
-    /// Za svaki zahtjev:
-    ///   1. Kreira jedinsteni CorrelationId i upisuje TaskCompletionSource u _pendingRequests.
-    ///   2. Salje poruku na RequestQueue s CorrelationId i ReplyTo zaglavljima.
-    ///   3. Ceka dok reply consumer ne resolva TCS, ili dok ne istekne timeout.
-    ///   4. Ako timeout istekne, vraca null — pozivatelj moze pasti na HTTP fallback.
-    ///
-    /// Singleton: konekcija i consumer se inicijalizuju jednom.
-    /// </summary>
     public sealed class RabbitMqEventQueryClient : IRabbitMqEventQueryClient, IAsyncDisposable
     {
         private readonly EventQueryRabbitMqOptions _options;
@@ -87,7 +76,7 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                         t.TrySetCanceled();
                 });
 
-                return await tcs.Task;
+                return await tcs.Task;//ceka se dok se ne desi odgovor
             }
             catch (OperationCanceledException)
             {

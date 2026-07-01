@@ -44,13 +44,13 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning(ex, "Neuspesno slanje outbox poruke ID={Id}", message.Id);
+                            _logger.LogWarning(ex, "Failed to publish outbox message. Id={Id}", message.Id);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Greska u OutboxMessagePublisher.");
+                    _logger.LogError(ex, "Unexpected error in OutboxMessagePublisher.");
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);

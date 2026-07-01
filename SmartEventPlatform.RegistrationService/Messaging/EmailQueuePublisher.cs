@@ -10,10 +10,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
         Task EnqueueAsync(EmailNotificationMessage message, CancellationToken cancellationToken);
     }
 
-    /// <summary>
-    /// Stavlja email notifikacije na queue. Poziva ga controller
-    /// nakon uspjesnog commit-a registracije. Singleton — konekcija se dijeli.
-    /// </summary>
     public sealed class EmailQueuePublisher : IEmailQueuePublisher, IAsyncDisposable
     {
         private readonly EmailRabbitMqOptions _options;
@@ -33,6 +29,7 @@ namespace SmartEventPlatform.RegistrationService.Messaging
         public async Task EnqueueAsync(EmailNotificationMessage message, CancellationToken cancellationToken)
         {
             await EnsureInitializedAsync(cancellationToken);
+
             if (_channel is null) return;
 
             var properties = new BasicProperties
