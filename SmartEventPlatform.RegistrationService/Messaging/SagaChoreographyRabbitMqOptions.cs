@@ -1,15 +1,6 @@
 ﻿namespace SmartEventPlatform.RegistrationService.Messaging
 {
-    /// <summary>
-    /// Konfiguracija RabbitMQ topologije za Saga Koreografiju.
-    ///
-    /// Sva tri servisa koriste isti exchange i iste queue nazive.
-    /// Svaki servis cita ove opcije da bi znao gdje da objavljuje
-    /// i odakle da cita poruke.
-    ///
-    /// BITNO: Svi publisheri i consumeri moraju deklarisati queues s
-    /// IDENTICNIM argumentima — razlika uzrokuje PRECONDITION_FAILED u RabbitMQ.
-    /// </summary>
+    
     public class SagaChoreographyRabbitMqOptions
     {
         public const string SectionName = "SagaChoreography";
@@ -19,7 +10,6 @@
         public string UserName { get; set; } = "guest";
         public string Password { get; set; } = "guest";
 
-        // Exchange i DLX — isti za sve servise
         public string Exchange { get; set; } = "smart-event.saga-choreography";
         public string DeadLetterExchange { get; set; } = "smart-event.saga-choreography.dlx";
 

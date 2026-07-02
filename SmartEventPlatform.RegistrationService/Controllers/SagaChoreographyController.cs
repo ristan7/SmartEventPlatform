@@ -6,18 +6,10 @@ using SmartEventPlatform.RegistrationService.Clients;
 using SmartEventPlatform.RegistrationService.Data;
 using SmartEventPlatform.RegistrationService.Messaging;
 using SmartEventPlatform.RegistrationService.Models;
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 
 namespace SmartEventPlatform.RegistrationService.Controllers;
 
-/// <summary>
-/// HTTP API za pokretanje i pracenje Saga Koreografija procesa.
-///
-/// Za razliku od Saga Orkestracije (POST /api/registrations koji blokira do kraja),
-/// koreografija je ASINHRONA — vraca 202 Accepted odmah, a rezultat
-/// se moze pratiti polling-om na GET /api/saga-choreography/{correlationId}/status.
-/// </summary>
 [ApiController]
 [Route("api/saga-choreography")]
 public class SagaChoreographyController : ControllerBase
@@ -45,10 +37,6 @@ public class SagaChoreographyController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Pokrace Saga Koreografija proces za registraciju ucesnika.
-    /// Vraca 202 Accepted s CorrelationId-om za pracenje.
-    /// </summary>
     [HttpPost("start")]
     public async Task<IActionResult> Start([FromBody] SagaChoreographyStartRequest request)
     {
@@ -58,7 +46,7 @@ public class SagaChoreographyController : ControllerBase
         var participant = await _context.Participants
             .FirstOrDefaultAsync(p => p.ParticipantId == request.ParticipantId);
         if (participant is null)
-            return BadRequest("Odabrani ucesnik ne postoji.");
+            return BadRequest("Selected participant does not exist.");
 
         // Provjera dogadjaja (Request-Reply → HTTP fallback)
         var mqReply = await _eventQueryClient.QueryEventInfoAsync(request.EventId, HttpContext.RequestAborted);
@@ -79,13 +67,13 @@ public class SagaChoreographyController : ControllerBase
         }
 
         if (!eventExists)
-            return BadRequest("Odabrani dogadjaj ne postoji.");
+            return BadRequest("Selected event does not exist.");
 
         if (await _context.Registrations.AnyAsync(r =>
                 r.EventId == request.EventId && r.ParticipantId == request.ParticipantId))
-            return BadRequest("Ucesnik je vec registrovan na ovaj dogadjaj.");
+            return BadRequest("This participant is already registered for the selected event.");
 
-        // Dohvati LocationId (potreban za DirectoryService u Koraku 3)
+        // Dohvati LocationId
         long locationId = 0;
         try
         {
@@ -97,7 +85,7 @@ public class SagaChoreographyController : ControllerBase
             _logger.LogWarning(ex, "[SagaChoreo] Nije uspjelo dohvatanje LocationId za EventId={Id}.", request.EventId);
         }
 
-        // Kreiranje Saga state + PENDING registracija u jednoj transakciji
+        
         var correlationId = Guid.NewGuid();
 
         await using var tx = await _context.Database.BeginTransactionAsync();
@@ -142,7 +130,7 @@ public class SagaChoreographyController : ControllerBase
         {
             await tx.RollbackAsync();
             _logger.LogError(ex, "[SagaChoreo] Greska pri kreiranju Saga state/registracije.");
-            return StatusCode(500, "Greska pri pokretanju Sage.");
+            return StatusCode(500, "Error starting the saga.");
         }
 
         // Objavi SagaChoreographyStarted → EventService
@@ -171,15 +159,11 @@ public class SagaChoreographyController : ControllerBase
         return Accepted(new
         {
             CorrelationId = correlationId,
-            Message = "Saga Koreografija je pokrenuta. Pratite status putem CorrelationId-a.",
+            Message = "Saga Choreography has been started. Track the status using the CorrelationId.",
             StatusUrl = Url.Action(nameof(GetStatus), new { correlationId })
         });
     }
 
-    /// <summary>
-    /// Vraca trenutno stanje Saga procesa po CorrelationId-u.
-    /// Polling dok Status ne bude Completed ili Compensated.
-    /// </summary>
     [HttpGet("{correlationId:guid}/status")]
     public async Task<IActionResult> GetStatus(Guid correlationId)
     {
@@ -188,7 +172,7 @@ public class SagaChoreographyController : ControllerBase
             .FirstOrDefaultAsync(s => s.CorrelationId == correlationId);
 
         if (saga is null)
-            return NotFound($"Saga sa CorrelationId={correlationId} nije pronadjena.");
+            return NotFound($"Saga with CorrelationId={correlationId} was not found.");
 
         return Ok(new
         {
@@ -201,14 +185,4 @@ public class SagaChoreographyController : ControllerBase
             saga.UpdatedAt
         });
     }
-}
-
-public class SagaChoreographyStartRequest
-{
-    [Required]
-    public long EventId { get; set; }
-    [Required]
-    public long ParticipantId { get; set; }
-    [Required]
-    public DateTime RegistrationDate { get; set; }
 }

@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using SmartEventPlatform.EventService.CQRS.ReadModels;
+using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.EventService.Data;
 
 namespace SmartEventPlatform.EventService.CQRS.Repositories
@@ -13,13 +13,13 @@ namespace SmartEventPlatform.EventService.CQRS.Repositories
             _context = context;
         }
 
-        public async Task<List<EventReadModel>> GetAllAsync()
+        public async Task<List<EventDto>> GetAllAsync()
         {
             return await _context.Events
                 .Include(e => e.EventType)
                 .Include(e => e.EventSpeakers)
                 .OrderBy(e => e.EventDateTime)
-                .Select(e => new EventReadModel
+                .Select(e => new EventDto
                 {
                     EventId = e.EventId,
                     EventName = e.EventName,
@@ -41,13 +41,13 @@ namespace SmartEventPlatform.EventService.CQRS.Repositories
                 .ToListAsync();
         }
 
-        public async Task<EventReadModel?> GetByIdAsync(long id)
+        public async Task<EventDto?> GetByIdAsync(long id)
         {
             return await _context.Events
                 .Include(e => e.EventType)
                 .Include(e => e.EventSpeakers)
                 .Where(e => e.EventId == id)
-                .Select(e => new EventReadModel
+                .Select(e => new EventDto
                 {
                     EventId = e.EventId,
                     EventName = e.EventName,
@@ -69,14 +69,14 @@ namespace SmartEventPlatform.EventService.CQRS.Repositories
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<List<EventReadModel>> GetUpcomingAsync(DateTime fromDate)
+        public async Task<List<EventDto>> GetUpcomingAsync(DateTime fromDate)
         {
             return await _context.Events
                 .Include(e => e.EventType)
                 .Include(e => e.EventSpeakers)
                 .Where(e => e.EventDateTime >= fromDate)
                 .OrderBy(e => e.EventDateTime)
-                .Select(e => new EventReadModel
+                .Select(e => new EventDto
                 {
                     EventId = e.EventId,
                     EventName = e.EventName,

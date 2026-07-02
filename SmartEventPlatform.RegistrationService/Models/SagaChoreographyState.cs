@@ -19,7 +19,6 @@
     {
         public long SagaId { get; set; }
 
-        /// <summary>Jedinstven ID koji se prenosi kroz sve dogadjaje Sage.</summary>
         public Guid CorrelationId { get; set; }
 
         public string Status { get; set; } = "Started";
@@ -29,7 +28,6 @@
         public long ParticipantId { get; set; }
         public long LocationId { get; set; }
 
-        // Cuvamo detalje za email jer consumer nema HTTP pristup
         public string ParticipantFirstName { get; set; } = string.Empty;
         public string ParticipantLastName { get; set; } = string.Empty;
         public string ParticipantEmail { get; set; } = string.Empty;

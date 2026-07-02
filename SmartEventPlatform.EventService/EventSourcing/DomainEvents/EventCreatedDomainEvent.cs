@@ -1,9 +1,5 @@
 ﻿namespace SmartEventPlatform.EventService.EventSourcing.DomainEvents
 {
-    /// <summary>
-    /// Domenski događaj: Stručni događaj je kreiran.
-    /// Bilježi sve inicijalne podatke pri kreiranju.
-    /// </summary>
     public class EventCreatedDomainEvent : EventDomainEvent
     {
         public long EventId { get; set; }

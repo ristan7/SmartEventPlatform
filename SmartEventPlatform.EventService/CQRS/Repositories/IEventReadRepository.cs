@@ -1,15 +1,11 @@
-﻿using SmartEventPlatform.EventService.CQRS.ReadModels;
+﻿using SmartEventPlatform.Contracts.Events;
 
 namespace SmartEventPlatform.EventService.CQRS.Repositories
 {
-    /// <summary>
-    /// Repozitorij koji se koristi isključivo za čitanje podataka (Query strana CQRS-a).
-    /// Metode ovog interfejsa NIKADA ne smiju mijenjati stanje baze podataka.
-    /// </summary>
     public interface IEventReadRepository
     {
-        Task<List<EventReadModel>> GetAllAsync();
-        Task<EventReadModel?> GetByIdAsync(long id);
-        Task<List<EventReadModel>> GetUpcomingAsync(DateTime fromDate);
+        Task<List<EventDto>> GetAllAsync();
+        Task<EventDto?> GetByIdAsync(long id);
+        Task<List<EventDto>> GetUpcomingAsync(DateTime fromDate);
     }
 }

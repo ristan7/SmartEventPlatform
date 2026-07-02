@@ -7,10 +7,7 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.EventService.CQRS.Commands
 {
-    /// <summary>
-    /// Handler za CreateEventCommand.
-    /// Ručna implementacija — controller direktno poziva Handle() metodu.
-    /// </summary>
+    
     public class CreateEventCommandHandler
     {
         private readonly IEventWriteRepository _writeRepository;
@@ -30,11 +27,7 @@ namespace SmartEventPlatform.EventService.CQRS.Commands
             _logger = logger;
         }
 
-        /// <summary>
-        /// Izvršava komandu kreiranja događaja.
-        /// Vraća ID kreiranog događaja.
-        /// Baca InvalidOperationException ako validacija ne prođe.
-        /// </summary>
+        
         public async Task<long> Handle(CreateEventCommand command)
         {
             // Validacija: lokacija mora postojati u DirectoryService-u
@@ -46,7 +39,6 @@ namespace SmartEventPlatform.EventService.CQRS.Commands
             if (!await _writeRepository.EventTypeExistsAsync(command.EventTypeId))
                 throw new InvalidOperationException("Selected event type does not exist.");
 
-            // Gradimo write entitet — ne ReadModel!
             var newEvent = new Event
             {
                 EventName = command.EventName,

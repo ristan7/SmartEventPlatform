@@ -90,25 +90,18 @@ public class RegistrationsController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Kreira novu registraciju kroz Saga Orkestraciju.
-    ///
-    /// Umjesto direktnog upisa, poziva RegistrationSagaOrchestrator koji koordinira
-    /// sve korake (RegistrationService → EventService → DirectoryService → potvrda).
-    /// Ako bilo koji korak ne uspije, kompenzacione akcije poništavaju urađeno.
-    /// </summary>
+
     [HttpPost]
     public async Task<ActionResult<long>> Create(RegistrationCreateUpdateDto dto)
     {
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
-        var participantExists = await _context.Participants
-            .AnyAsync(p => p.ParticipantId == dto.ParticipantId);
-        if (!participantExists)
+        var participant = await _context.Participants
+            .FirstOrDefaultAsync(p => p.ParticipantId == dto.ParticipantId);
+        if (participant == null)
             return BadRequest("Selected participant does not exist.");
 
-        // Validacija: Request-Reply prema EventService (kao i prije)
         _logger.LogInformation("Attempting Request-Reply for EventId={Id}.", dto.EventId);
 
         var mqReply = await _eventQueryClient.QueryEventInfoAsync(dto.EventId, HttpContext.RequestAborted);
@@ -133,16 +126,6 @@ public class RegistrationsController : ControllerBase
         if (await AlreadyRegistered(dto.EventId, dto.ParticipantId))
             return BadRequest("This participant is already registered for the selected event.");
 
-        // Dohvati podatke o učesniku i događaju za Sagu
-        var participant = await _context.Participants
-            .FirstOrDefaultAsync(p => p.ParticipantId == dto.ParticipantId);
-
-        if (participant == null)
-            return BadRequest("Selected participant does not exist.");
-
-        // Trebamo LocationId da bismo pozvali DirectoryService u Koraku 3.
-        // LocationId je pohranjen u EventService kao dio događaja.
-        // Dohvatamo ga HTTP pozivom (EventService ga vraća u EventDto).
         EventDto? eventDetails = null;
         try
         {
@@ -151,7 +134,7 @@ public class RegistrationsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Nije uspjelo dohvatanje detalja događaja za LocationId.");
+            _logger.LogWarning(ex, "Nije uspelo dohvatanje detalja događaja za LocationId.");
         }
 
         long locationId = eventDetails?.LocationId ?? 0;
@@ -175,8 +158,8 @@ public class RegistrationsController : ControllerBase
         if (!sagaResult.Success)
         {
             _logger.LogWarning(
-                "Saga nije uspjela: {Error}", sagaResult.ErrorMessage);
-            return BadRequest(sagaResult.ErrorMessage ?? "Registracija nije uspjela.");
+                "Saga nije uspela: {Error}", sagaResult.ErrorMessage);
+            return BadRequest(sagaResult.ErrorMessage ?? "Registracija nije uspela.");
         }
 
         return CreatedAtAction(nameof(GetById),

@@ -11,14 +11,6 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.EventService.Messaging
 {
-    /// <summary>
-    /// EventService konzumira dogadjaje iz saga-choreo.event-service.queue.
-    ///
-    /// Poruke koje prima:
-    ///   SagaChoreographyStarted   → Rezervisi mjesto (Korak 2)
-    ///   SagaAttendanceFailed      → Oslobodi rezervaciju (kompenzacija K2) → objavi SpotReleased
-    ///   SagaRegistrationConfirmed → Finalizuj rezervaciju u EventRegistrationTracker (Korak 4b)
-    /// </summary>
     public sealed class SagaChoreographyConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
@@ -56,13 +48,13 @@ namespace SmartEventPlatform.EventService.Messaging
             _connection = await factory.CreateConnectionAsync(stoppingToken);
             _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
-            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
-            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, true, false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.Exchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
+            await _channel.ExchangeDeclareAsync(mq.DeadLetterExchange, ExchangeType.Direct, durable: true, autoDelete: false, cancellationToken: stoppingToken);
 
-            await _channel.QueueDeclareAsync(mq.EventServiceDlq, true, false, false, cancellationToken: stoppingToken);
+            await _channel.QueueDeclareAsync(mq.EventServiceDlq, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.EventServiceDlq, mq.DeadLetterExchange, mq.EventServiceRoutingKey, cancellationToken: stoppingToken);
             await _channel.QueueDeclareAsync(
-                mq.EventServiceQueue, true, false, false,
+                mq.EventServiceQueue, durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", mq.DeadLetterExchange } },
                 cancellationToken: stoppingToken);
             await _channel.QueueBindAsync(mq.EventServiceQueue, mq.Exchange, mq.EventServiceRoutingKey, cancellationToken: stoppingToken);
@@ -140,7 +132,7 @@ namespace SmartEventPlatform.EventService.Messaging
             // CorrelationId (Guid) se pretvara u deterministican long za SagaSpotReservation.SagaId
             long sagaIdAsLong = Math.Abs(evt.CorrelationId.GetHashCode());
 
-            // Idempotentnost: vec postoji rezervacija za ovu Sagu?
+            // Idempotentnost: vec postoji rezervacija za ovu Sagu
             var existingReservation = await db.SagaSpotReservations
                 .FirstOrDefaultAsync(r => r.SagaId == sagaIdAsLong, ct);
 
@@ -237,7 +229,6 @@ namespace SmartEventPlatform.EventService.Messaging
             {
                 db.SagaSpotReservations.Remove(reservation);
                 await db.SaveChangesAsync(ct);
-                // NOVO
                 _logger.LogInformation("[SagaChoreo-ES] Kompenzacija K2: Rezervacija uklonjena za SagaId={SagaId}.", sagaIdAsLong);
             }
             else

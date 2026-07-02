@@ -1,9 +1,5 @@
 ﻿namespace SmartEventPlatform.EventService.CQRS.Commands
 {
-    /// <summary>
-    /// Komanda za izmjenu postojećeg događaja.
-    /// Vraća true ako je event pronađen i ažuriran, false ako nije pronađen.
-    /// </summary>
     public class UpdateEventCommand
     {
         public long EventId { get; set; }

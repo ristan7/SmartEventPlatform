@@ -11,18 +11,14 @@ namespace SmartEventPlatform.EventService.Controllers
     [ApiController]
     public class EventsController : ControllerBase
     {
-        // ── CQRS Query handleri ──────────────────────────────────────────────
         private readonly GetAllEventsQueryHandler _getAllHandler;
         private readonly GetEventByIdQueryHandler _getByIdHandler;
         private readonly GetUpcomingEventsQueryHandler _getUpcomingHandler;
 
-        // ── CQRS Command handleri ────────────────────────────────────────────
         private readonly CreateEventCommandHandler _createHandler;
         private readonly UpdateEventCommandHandler _updateHandler;
         private readonly DeleteEventCommandHandler _deleteHandler;
 
-        // ── Direktni DbContext ostaje samo za pomoćne endpoint-e koji nisu
-        //    user-facing CRUD operacije (exists-for-location, registration-info…)
         private readonly EventDbContext _context;
 
         public EventsController(
@@ -43,99 +39,34 @@ namespace SmartEventPlatform.EventService.Controllers
             _context = context;
         }
 
-        // ══════════════════════════════════════════════════════════════
-        //  QUERY endpoint-i — čitanje, CQRS Query strana
-        // ══════════════════════════════════════════════════════════════
 
-        /// <summary>Vraća sve događaje. Poziva GetAllEventsQueryHandler.</summary>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EventDto>>> GetAll()
         {
-            var results = await _getAllHandler.Handle(new GetAllEventsQuery());
-
-            var dtos = results.Select(r => new EventDto
-            {
-                EventId = r.EventId,
-                EventName = r.EventName,
-                Agenda = r.Agenda,
-                EventDateTime = r.EventDateTime,
-                DurationInMinutes = r.DurationInMinutes,
-                RegistrationFee = r.RegistrationFee,
-                LocationId = r.LocationId,
-                LocationName = r.LocationName,
-                LocationAddress = r.LocationAddress,
-                Capacity = r.Capacity,
-                EventTypeId = r.EventTypeId,
-                EventTypeName = r.EventTypeName,
-                Speakers = r.Speakers
-            }).ToList();
-
+            var dtos = await _getAllHandler.Handle(new GetAllEventsQuery());
             return Ok(dtos);
         }
 
-        /// <summary>Vraća jedan događaj po ID-u. Poziva GetEventByIdQueryHandler.</summary>
         [HttpGet("{id:long}")]
         public async Task<ActionResult<EventDto>> GetById(long id)
         {
-            var result = await _getByIdHandler.Handle(new GetEventByIdQuery { EventId = id });
+            var dto = await _getByIdHandler.Handle(new GetEventByIdQuery { EventId = id });
 
-            if (result == null)
+            if (dto == null)
                 return NotFound();
 
-            return Ok(new EventDto
-            {
-                EventId = result.EventId,
-                EventName = result.EventName,
-                Agenda = result.Agenda,
-                EventDateTime = result.EventDateTime,
-                DurationInMinutes = result.DurationInMinutes,
-                RegistrationFee = result.RegistrationFee,
-                LocationId = result.LocationId,
-                LocationName = result.LocationName,
-                LocationAddress = result.LocationAddress,
-                Capacity = result.Capacity,
-                EventTypeId = result.EventTypeId,
-                EventTypeName = result.EventTypeName,
-                Speakers = result.Speakers
-            });
+            return Ok(dto);
         }
 
-        /// <summary>
-        /// Vraća predstojeće događaje filtrirane po datumu. Poziva GetUpcomingEventsQueryHandler.
-        /// Primjer: GET /api/events/upcoming?fromDate=2026-07-01
-        /// Bez fromDate parametra vraća od danas.
-        /// </summary>
         [HttpGet("upcoming")]
         public async Task<ActionResult<IEnumerable<EventDto>>> GetUpcoming([FromQuery] DateTime? fromDate)
         {
-            var results = await _getUpcomingHandler.Handle(
+            var dtos = await _getUpcomingHandler.Handle(
                 new GetUpcomingEventsQuery { FromDate = fromDate });
-
-            var dtos = results.Select(r => new EventDto
-            {
-                EventId = r.EventId,
-                EventName = r.EventName,
-                Agenda = r.Agenda,
-                EventDateTime = r.EventDateTime,
-                DurationInMinutes = r.DurationInMinutes,
-                RegistrationFee = r.RegistrationFee,
-                LocationId = r.LocationId,
-                LocationName = r.LocationName,
-                LocationAddress = r.LocationAddress,
-                Capacity = r.Capacity,
-                EventTypeId = r.EventTypeId,
-                EventTypeName = r.EventTypeName,
-                Speakers = r.Speakers
-            }).ToList();
 
             return Ok(dtos);
         }
 
-        // ══════════════════════════════════════════════════════════════
-        //  COMMAND endpoint-i — izmjena stanja, CQRS Command strana
-        // ══════════════════════════════════════════════════════════════
-
-        /// <summary>Kreira novi događaj. Poziva CreateEventCommandHandler.</summary>
         [HttpPost]
         public async Task<ActionResult<long>> Create(EventCreateUpdateDto dto)
         {
@@ -163,7 +94,6 @@ namespace SmartEventPlatform.EventService.Controllers
             }
         }
 
-        /// <summary>Ažurira događaj. Poziva UpdateEventCommandHandler.</summary>
         [HttpPut("{id:long}")]
         public async Task<IActionResult> Update(long id, EventCreateUpdateDto dto)
         {
@@ -195,7 +125,6 @@ namespace SmartEventPlatform.EventService.Controllers
             }
         }
 
-        /// <summary>Briše događaj. Poziva DeleteEventCommandHandler.</summary>
         [HttpDelete("{id:long}")]
         public async Task<IActionResult> Delete(long id)
         {
@@ -213,11 +142,6 @@ namespace SmartEventPlatform.EventService.Controllers
                 return BadRequest(ex.Message);
             }
         }
-
-        // ══════════════════════════════════════════════════════════════
-        //  Pomoćni endpoint-i za inter-service komunikaciju
-        //  Ostaju s direktnim DbContext-om — nisu user CRUD operacije.
-        // ══════════════════════════════════════════════════════════════
 
         [HttpGet("exists-for-location/{locationId:long}")]
         public async Task<ActionResult<bool>> ExistsForLocation(long locationId)
@@ -257,26 +181,12 @@ namespace SmartEventPlatform.EventService.Controllers
         [HttpGet("{id:long}/delete-info")]
         public async Task<ActionResult<EventDto>> GetDeleteInfo(long id)
         {
-            var result = await _getByIdHandler.Handle(new GetEventByIdQuery { EventId = id });
+            var dto = await _getByIdHandler.Handle(new GetEventByIdQuery { EventId = id });
 
-            if (result == null)
+            if (dto == null)
                 return NotFound();
 
-            return Ok(new EventDto
-            {
-                EventId = result.EventId,
-                EventName = result.EventName,
-                Agenda = result.Agenda,
-                EventDateTime = result.EventDateTime,
-                DurationInMinutes = result.DurationInMinutes,
-                RegistrationFee = result.RegistrationFee,
-                LocationId = result.LocationId,
-                LocationName = result.LocationName,
-                LocationAddress = result.LocationAddress,
-                Capacity = result.Capacity,
-                EventTypeId = result.EventTypeId,
-                EventTypeName = result.EventTypeName
-            });
+            return Ok(dto);
         }
     }
 }

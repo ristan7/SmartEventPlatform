@@ -1,11 +1,6 @@
 ﻿namespace SmartEventPlatform.RegistrationService.Models
 {
-    /// <summary>
-    /// Praćenje stanja Saga procesa za registraciju učesnika.
-    /// Svaki red u ovoj tabeli predstavlja jednu Saga instancu.
-    /// Status se mijenja kako Saga prolazi kroz korake,
-    /// a u slučaju greške prelazi u kompenzacione korake.
-    /// </summary>
+    
     public class SagaState
     {
         public long SagaId { get; set; }
@@ -23,7 +18,6 @@
         /// </summary>
         public string Status { get; set; } = "Started";
 
-        // Podaci koji se čuvaju da bi kompenzacija znala šta da poništi
         public long? RegistrationId { get; set; }
         public long EventId { get; set; }
         public long ParticipantId { get; set; }

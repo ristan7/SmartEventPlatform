@@ -11,9 +11,6 @@ public sealed class DirectoryServiceClient : IDirectoryServiceClient
         _logger = logger;
     }
 
-    /// <summary>
-    /// Korak 3 Sage: Incrementira brojač prisustva na lokaciji u DirectoryService.
-    /// </summary>
     public async Task RecordAttendanceAsync(long locationId, long sagaId, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.PostAsync(
@@ -27,13 +24,10 @@ public sealed class DirectoryServiceClient : IDirectoryServiceClient
                 "[Saga {SagaId}] DirectoryService vratio {Code} za RecordAttendance (LocationId={LocationId}).",
                 sagaId, (int)response.StatusCode, locationId);
 
-            response.EnsureSuccessStatusCode(); // baci iznimku radi trigerovanja kompenzacije
+            response.EnsureSuccessStatusCode();
         }
     }
 
-    /// <summary>
-    /// Korak 3 kompenzacija: Smanjuje brojač prisustva na lokaciji.
-    /// </summary>
     public async Task ReleaseAttendanceAsync(long locationId, long sagaId, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.DeleteAsync(

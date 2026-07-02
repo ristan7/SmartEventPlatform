@@ -1,4 +1,4 @@
-﻿using SmartEventPlatform.EventService.CQRS.ReadModels;
+﻿using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.EventService.CQRS.Repositories;
 
 namespace SmartEventPlatform.EventService.CQRS.Queries
@@ -12,9 +12,8 @@ namespace SmartEventPlatform.EventService.CQRS.Queries
             _readRepository = readRepository;
         }
 
-        public async Task<List<EventReadModel>> Handle(GetUpcomingEventsQuery query)
+        public async Task<List<EventDto>> Handle(GetUpcomingEventsQuery query)
         {
-            // Ako FromDate nije zadan, podrazumijevano je danas u ponoć
             var fromDate = query.FromDate ?? DateTime.UtcNow.Date;
 
             return await _readRepository.GetUpcomingAsync(fromDate);
