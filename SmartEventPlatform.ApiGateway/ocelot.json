@@ -1,15 +1,5 @@
 {
   "Routes": [
-
-    // =================================================================
-    // FUNCTIONALITY 1: ROUTING
-    // =================================================================
-
-    // -----------------------------------------------------------------
-    // EVENTS - GET list (with caching)
-    // FUNCTIONALITY 3: CACHING (TtlSeconds 60)
-    // FUNCTIONALITY 4: LOAD BALANCING (LeastConnection)
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/events",
@@ -30,10 +20,6 @@
       },
       "Key": "events-list"
     },
-
-    // -----------------------------------------------------------------
-    // EVENTS - GET upcoming
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/events/upcoming",
@@ -46,10 +32,6 @@
         }
       ]
     },
-
-    // -----------------------------------------------------------------
-    // EVENTS - GET single (with caching)
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/events/{id}",
@@ -67,9 +49,6 @@
       }
     },
 
-    // -----------------------------------------------------------------
-    // EVENTS - POST create
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Post" ],
       "UpstreamPathTemplate": "/gateway/events",
@@ -83,9 +62,6 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // EVENTS - PUT update
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Put" ],
       "UpstreamPathTemplate": "/gateway/events/{id}",
@@ -99,9 +75,6 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // EVENTS - DELETE
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Delete" ],
       "UpstreamPathTemplate": "/gateway/events/{id}",
@@ -115,9 +88,6 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // EVENT TYPES - GET list (with caching)
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/eventtypes",
@@ -158,10 +128,6 @@
         }
       ]
     },
-
-    // -----------------------------------------------------------------
-    // EVENT SPEAKERS - GET by speaker (must be BEFORE /{id} route)
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/eventspeakers/by-speaker/{speakerId}",
@@ -174,10 +140,6 @@
         }
       ]
     },
-
-    // -----------------------------------------------------------------
-    // EVENT SPEAKERS - GET list
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/eventspeakers",
@@ -190,10 +152,6 @@
         }
       ]
     },
-
-    // -----------------------------------------------------------------
-    // EVENT SPEAKERS - GET single / PUT / DELETE by single ID
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get", "Put", "Delete" ],
       "UpstreamPathTemplate": "/gateway/eventspeakers/{id}",
@@ -207,9 +165,6 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // EVENT SPEAKERS - POST create
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Post" ],
       "UpstreamPathTemplate": "/gateway/eventspeakers",
@@ -223,15 +178,6 @@
       ]
     },
 
-    // =================================================================
-    // DIRECTORY SERVICE - LOCATIONS
-    // FUNCTIONALITY 3: CACHING on GET list
-    // =================================================================
-
-    // -----------------------------------------------------------------
-    // LOCATIONS - GET list (with caching, Key for aggregation)
-    // FUNCTIONALITY 5: API COMPOSITION - used by /gateway/dashboard
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/locations",
@@ -250,9 +196,7 @@
       "Key": "locations-list"
     },
 
-    // -----------------------------------------------------------------
-    // LOCATIONS - GET single
-    // -----------------------------------------------------------------
+    
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/locations/{id}",
@@ -266,9 +210,7 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // LOCATIONS - POST create
-    // -----------------------------------------------------------------
+    
     {
       "UpstreamHttpMethod": [ "Post" ],
       "UpstreamPathTemplate": "/gateway/locations",
@@ -282,9 +224,6 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // LOCATIONS - PUT / DELETE
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Put", "Delete" ],
       "UpstreamPathTemplate": "/gateway/locations/{id}",
@@ -298,9 +237,6 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // SPEAKERS - GET list (with caching)
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/speakers",
@@ -354,13 +290,6 @@
       ]
     },
 
-    // =================================================================
-    // REGISTRATION SERVICE
-    // =================================================================
-
-    // -----------------------------------------------------------------
-    // AVAILABLE EVENTS
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/availableevents",
@@ -373,10 +302,6 @@
         }
       ]
     },
-
-    // -----------------------------------------------------------------
-    // REGISTRATIONS - CRUD
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/registrations",
@@ -438,9 +363,6 @@
       ]
     },
 
-    // -----------------------------------------------------------------
-    // PARTICIPANTS - CRUD
-    // -----------------------------------------------------------------
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/gateway/participants",

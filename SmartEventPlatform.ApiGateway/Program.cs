@@ -10,44 +10,28 @@ namespace SmartEventPlatform.ApiGateway
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // -------------------------------------------------------
-            // KONFIGURACIJA: Ucitaj ocelot.json pored appsettings.json
-            // -------------------------------------------------------
             builder.Configuration
                 .SetBasePath(builder.Environment.ContentRootPath)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
-                .AddOcelot()            // ucitava ocelot.json
+                .AddOcelot()
                 .AddEnvironmentVariables();
 
-            // -------------------------------------------------------
-            // LOGGING (Funkcionalnost 6: Logging & Monitoring)
-            // Koristimo ugradeni .NET logging - svaki zahtev ce biti
-            // logovan sa metodom, putanjom, statusom i trajanjem.
-            // -------------------------------------------------------
+            //zahtev 11 logging and monitoring
             builder.Services.AddLogging(logging =>
             {
                 logging.ClearProviders();
                 logging.AddConsole();
             });
 
-            // -------------------------------------------------------
-            // OCELOT registracija
-            // AddCacheManager aktivira Funkcionalnost 3: Kesiranje
-            // -------------------------------------------------------
+            //zahtev 8 kesiranje odgovora
             builder.Services
                 .AddOcelot(builder.Configuration)
                 .AddCacheManager(x => x.WithDictionaryHandle());
 
             var app = builder.Build();
 
-            // -------------------------------------------------------
-            // CUSTOM MIDDLEWARE - Logging & Monitoring
-            // -------------------------------------------------------
-            // Ovaj middleware se izvrsava PRIJE Ocelota i loguje:
-            //   - HTTP metoda i putanja dolaznog zahteva
-            //   - Status kod odgovora i trajanje u ms
-            // Ovo demonstrira Funkcionalnost 6: Logging & Monitoring
+            
             app.Use(async (context, next) =>
             {
                 var logger = context.RequestServices
@@ -79,26 +63,25 @@ namespace SmartEventPlatform.ApiGateway
             //   - API Kompozicija (Funk. 5)
             // Sve su konfigurisane u ocelot.json
             // -------------------------------------------------------
-            var pipelineConfig = new OcelotPipelineConfiguration
-            {
-                // Custom authorization middleware - ovdje mozemo dodati
-                // logiku autentikacije/autorizacije u buducnosti
-                AuthorizationMiddleware = async (context, next) =>
-                {
-                    var logger = context.RequestServices
-                        .GetRequiredService<ILogger<Program>>();
+            //var pipelineConfig = new OcelotPipelineConfiguration
+            //{
+            //    
+            //    AuthorizationMiddleware = async (context, next) =>
+            //    {
+            //        var logger = context.RequestServices
+            //            .GetRequiredService<ILogger<Program>>();
 
-                    logger.LogDebug(
-                        "[GATEWAY AUTH] Provjera autorizacije za {Path}",
-                        context.Request.Path);
+            //        logger.LogDebug(
+            //            "[GATEWAY AUTH] Provjera autorizacije za {Path}",
+            //            context.Request.Path);
 
-                    // Trenutno propustamo sve zahtjeve - za produkciju
-                    // ovdje bi isla provjera JWT tokena ili API kljuca
-                    await next.Invoke();
-                }
-            };
+            //        // Trenutno propustamo sve zahtjeve - za produkciju
+            //        // ovdje bi isla provjera JWT tokena ili API kljuca
+            //        await next.Invoke();
+            //    }
+            //};
 
-            await app.UseOcelot(pipelineConfig);
+            await app.UseOcelot();
 
             await app.RunAsync();
         }
