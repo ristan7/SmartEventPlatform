@@ -1,0 +1,15 @@
+To: petar.petrovic@yahoo.com
+Subject: Registration Confirmation — Konferencija o mikroservisima
+Date: Thu, 02 Jul 2026 09:08:03 GMT
+
+Dear Petar Petrovic,
+
+You have successfully registered for the following event:
+
+  Event: Konferencija o mikroservisima
+  Date and time: 01.01.0001 00:00
+  Registration ID: 12
+  Registration date: 02.07.2026
+
+Best regards,
+SmartEvent Platform

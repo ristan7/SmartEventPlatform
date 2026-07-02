@@ -34,13 +34,16 @@ namespace SmartEventPlatform.RegistrationService
                 client.Timeout = TimeSpan.FromSeconds(5);
             });
 
+            //orkestracija
             builder.Services.AddScoped<RegistrationSagaOrchestrator>();
 
+            //Outbox pattern
             builder.Services.Configure<RabbitMqOptions>(
                 builder.Configuration.GetSection(RabbitMqOptions.SectionName));
             builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
             builder.Services.AddHostedService<OutboxMessagePublisher>();
 
+            //reply-request
             builder.Services.Configure<EventQueryRabbitMqOptions>(
                 builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<IRabbitMqEventQueryClient, RabbitMqEventQueryClient>();
@@ -51,12 +54,11 @@ namespace SmartEventPlatform.RegistrationService
             builder.Services.AddSingleton<IEmailQueuePublisher, EmailQueuePublisher>();
             builder.Services.AddHostedService<EmailWorkerService>();
 
-            // ── Saga Koreografija ─────────────────────────────────────────
+            //koreografija
             builder.Services.Configure<SagaChoreographyRabbitMqOptions>(
                 builder.Configuration.GetSection(SagaChoreographyRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<ISagaChoreographyPublisher, SagaChoreographyPublisher>();
             builder.Services.AddHostedService<SagaChoreographyConsumerService>();
-            // ─────────────────────────────────────────────────────────────
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();

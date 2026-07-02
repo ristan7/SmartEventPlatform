@@ -23,31 +23,20 @@ namespace SmartEventPlatform.EventService
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-            // ── CQRS: Repozitoriji ────────────────────────────────────────────────
-            // Read repozitorij — koriste ga isključivo Query handleri
+            //cqrs
             builder.Services.AddScoped<IEventReadRepository, EventReadRepository>();
-            // Write repozitorij — koriste ga isključivo Command handleri
             builder.Services.AddScoped<IEventWriteRepository, EventWriteRepository>();
 
-            // ── CQRS: Query Handleri ──────────────────────────────────────────────
-            // Registrujemo svaki handler ručno — bez MediatR-a ili bilo koje biblioteke.
-            // Controller ih dobija kroz DI i direktno poziva Handle() metodu.
             builder.Services.AddScoped<GetAllEventsQueryHandler>();
             builder.Services.AddScoped<GetEventByIdQueryHandler>();
             builder.Services.AddScoped<GetUpcomingEventsQueryHandler>();
 
-            // ── CQRS: Command Handleri ────────────────────────────────────────────
             builder.Services.AddScoped<CreateEventCommandHandler>();
             builder.Services.AddScoped<UpdateEventCommandHandler>();
             builder.Services.AddScoped<DeleteEventCommandHandler>();
-            // ─────────────────────────────────────────────────────────────────────
 
-            // ── EVENT SOURCING ────────────────────────────────────────────────────
-            // EventStoreRepository je ekvivalent InMemoryDatabase iz primjera,
-            // ali koristi SQL Server za perzistenciju. Registrujemo ga kao Scoped
-            // jer zavisi od EventDbContext koji je Scoped.
+            //event sourcing
             builder.Services.AddScoped<EventStoreRepository>();
-            // ─────────────────────────────────────────────────────────────────────
 
             builder.Services.AddSingleton<DirectoryServiceCircuitBreaker>();
             builder.Services.AddSingleton<RegistrationServiceCircuitBreaker>();
@@ -64,6 +53,7 @@ namespace SmartEventPlatform.EventService
                 client.Timeout = TimeSpan.FromSeconds(3);
             });
 
+            //outbox
             builder.Services.Configure<PublisherRabbitMqOptions>(
                 builder.Configuration.GetSection(PublisherRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
@@ -73,16 +63,16 @@ namespace SmartEventPlatform.EventService
                 builder.Configuration.GetSection(ConsumerRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<RegistrationEventsConsumerService>();
 
+            //request-reply
             builder.Services.Configure<EventQueryRabbitMqOptions>(
                 builder.Configuration.GetSection(EventQueryRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<EventQueryConsumerService>();
 
-            // ── Saga Koreografija ─────────────────────────────────────────────────
+            //koreografija
             builder.Services.Configure<SagaChoreographyRabbitMqOptions>(
                 builder.Configuration.GetSection(SagaChoreographyRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<ISagaChoreographyPublisher, SagaChoreographyPublisher>();
             builder.Services.AddHostedService<SagaChoreographyConsumerService>();
-            // ─────────────────────────────────────────────────────────────────────
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();

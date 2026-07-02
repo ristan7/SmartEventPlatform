@@ -8,8 +8,7 @@ namespace SmartEventPlatformWeb
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Single HTTP client routed through the API Gateway (localhost:5200).
-            // X-ClientId header is required by the gateway's rate-limiting middleware.
+            
             builder.Services.AddHttpClient("ApiGateway", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:ApiGateway"]!);

@@ -10,14 +10,6 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.RegistrationService.Messaging
 {
-    /// <summary>
-    /// RegistrationService konzumira dogadjaje iz saga-choreo.registration-service.queue.
-    ///
-    /// Poruke koje prima:
-    ///   SagaSpotReservationFailed  → EventService nije uspio rezervisati → kompenzuj K1
-    ///   SagaAttendanceRecorded     → DirectoryService uspio → potvrdi registraciju (K4)
-    ///   SagaSpotReleased           → EventService oslobodio spot → kompenzuj K1
-    /// </summary>
     public sealed class SagaChoreographyConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
@@ -160,7 +152,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
 
             if (saga.RegistrationId.HasValue)
             {
-                // NOVO
                 var reg = await db.Registrations.FindAsync(saga.RegistrationId.Value);
                 if (reg is not null)
                 {
@@ -195,7 +186,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
 
             if (saga.RegistrationId.HasValue)
             {
-                // NOVO
                 var reg = await db.Registrations.FindAsync(saga.RegistrationId.Value);
                 if (reg is not null)
                 {
@@ -230,7 +220,7 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                 _logger.LogWarning(emailEx, "[SagaChoreo-RS] Email nije stavljen u red (best-effort). CorrelationId={CorrId}.", evt.CorrelationId);
             }
 
-            // Obavijesti EventService da finalizuje rezervaciju
+            // Obavesti EventService da finalizuje rezervaciju
             var confirmedEvt = new SagaRegistrationConfirmedEvent
             {
                 CorrelationId = evt.CorrelationId,
@@ -265,7 +255,6 @@ namespace SmartEventPlatform.RegistrationService.Messaging
 
             if (saga.RegistrationId.HasValue)
             {
-                // NOVO
                 var reg = await db.Registrations.FindAsync(saga.RegistrationId.Value);
                 if (reg is not null)
                 {

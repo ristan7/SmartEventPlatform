@@ -5,17 +5,7 @@ using SmartEventPlatform.EventService.EventSourcing.DomainEvents;
 
 namespace SmartEventPlatform.EventService.EventSourcing
 {
-    /// <summary>
-    /// Repozitorij koji persostira i učitava EventAggregate koristeći Event Sourcing.
-    ///
-    /// Ekvivalent InMemoryDatabase iz primjera, ali umjesto Dictionary-ja koristi SQL Server bazu.
-    ///
-    /// Principi:
-    ///  • Save() — uzima neobjavljene događaje agregata, serializuje ih u JSON i čuva u EventStoreEntries tabeli
-    ///  • Load() — čita sve sačuvane događaje za agregat, primjenjuje ih redom i rekonstruiše stanje
-    ///  • Load() sa snapshotom — ako postoji snapshot, restauriše ga pa primjenjuje samo novije događaje
-    ///  • CreateSnapshot() — serializuje trenutno stanje agregata i čuva u EventSnapshotEntries tabeli
-    /// </summary>
+    
     public class EventStoreRepository
     {
         private readonly EventDbContext _db;
@@ -38,15 +28,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
             _logger = logger;
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  SAVE — persistiraj neobjavljene događaje agregata
-        //  Identično InMemoryDatabase.Save<T>() iz primjera
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Preuzima neobjavljene domenskie događaje agregata, serializuje ih u JSON
-        /// i upisuje u bazu hronološkim redom. Svaki događaj dobija sledeću verziju.
-        /// </summary>
+        
         public async Task SaveAsync(EventAggregate aggregate, CancellationToken ct = default)
         {
             var uncommittedEvents = aggregate.DequeueUncommittedEvents();
@@ -57,7 +39,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
                 return;
             }
 
-            // Pronađi najnoviju verziju u bazi da bismo dodijelili sledeće verzije
+            // Pronađi najnoviju verziju u bazi da bismo dodelili sledeće verzije
             var lastVersion = await _db.EventStoreEntries
                 .Where(e => e.AggregateId == aggregate.Id)
                 .MaxAsync(e => (int?)e.Version, ct) ?? 0;
@@ -83,21 +65,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             await _db.SaveChangesAsync(ct);
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  LOAD — rekonstruiši agregat iz historije događaja
-        //  Identično InMemoryDatabase.Load<T>() iz primjera
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Učitava EventAggregate rekonstrukcijom stanja iz historije sačuvanih ereignaje.
-        ///
-        /// Algoritam (identičan primjeru):
-        ///   1. Provjeri postoji li snapshot → ako da, restauriraj ga (Version = snapshot.Version)
-        ///   2. Uzmi sve događaje NAKON verzije snapshota
-        ///   3. Primjeni ih redom koristeći LoadFromHistory()
-        ///
-        /// Vraća null ako agregat ne postoji.
-        /// </summary>
         public async Task<EventAggregate?> LoadAsync(long aggregateId, CancellationToken ct = default)
         {
             // Provjeri postoji li uopšte ovaj agregat
@@ -155,15 +122,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
             return aggregate;
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  SNAPSHOT — sačuvaj trenutno stanje agregata
-        //  Identično InMemoryDatabase.CreateSnapshot<T>() iz primjera
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Kreira i persistira snapshot trenutnog stanja agregata.
-        /// Zamjenjuje prethodni snapshot (čuva samo najnoviji po agregatu).
-        /// </summary>
+        
         public async Task CreateSnapshotAsync(EventAggregate aggregate, CancellationToken ct = default)
         {
             var snapshot = (EventSnapshot)aggregate.CreateSnapshot();
@@ -189,15 +148,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
                 aggregate.Version, aggregate.Id);
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  HISTORIJA — vrati listu svih sačuvanih domenskih događaja
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Vraća kompletnu listu svih sačuvanih domenskih događaja za dati agregat,
-        /// zajedno sa njihovim metapodacima (tip, verzija, vrijeme nastanka).
-        /// Namijenjeno za prikaz historije promjena.
-        /// </summary>
         public async Task<List<EventHistoryItem>> GetHistoryAsync(long aggregateId, CancellationToken ct = default)
         {
             var entries = await _db.EventStoreEntries
@@ -214,9 +164,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             }).ToList();
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  HELPER — deserijalizuj domenski događaj iz JSON-a
-        // ─────────────────────────────────────────────────────────────────
 
         private EventDomainEvent? Deserialize(EventStoreEntry entry)
         {
@@ -230,7 +177,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
         }
     }
 
-    /// <summary>DTO za prikaz jednog historijskog unosa.</summary>
     public class EventHistoryItem
     {
         public int Version { get; set; }

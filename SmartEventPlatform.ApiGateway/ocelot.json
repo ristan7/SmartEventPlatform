@@ -400,10 +400,6 @@
       ]
     },
 
-    // =================================================================
-    // FUNCTIONALITY 10: API VERSIONING
-    // Client uses /api/v1/xxx, gateway forwards to /api/xxx on the service.
-    // =================================================================
     {
       "UpstreamHttpMethod": [ "Get" ],
       "UpstreamPathTemplate": "/api/v1/events",
@@ -451,10 +447,6 @@
 
   ],
 
-  // =================================================================
-  // FUNCTIONALITY 5: API COMPOSITION (Aggregation)
-  // GET /gateway/dashboard combines events-list + locations-list.
-  // =================================================================
   "Aggregates": [
     {
       "UpstreamPathTemplate": "/gateway/dashboard",
@@ -462,17 +454,11 @@
     }
   ],
 
-  // =================================================================
-  // GLOBAL CONFIGURATION
-  // =================================================================
+  
   "GlobalConfiguration": {
     "BaseUrl": "http://localhost:5200",
 
-    // -----------------------------------------------------------------
-    // FUNCTIONALITY 2: RATE LIMITING
-    // Max 30 requests per 30 seconds per client (identified by X-ClientId header).
-    // Clients that exceed the limit receive HTTP 429 Too Many Requests.
-    // -----------------------------------------------------------------
+    
     "RateLimitOptions": {
       "ClientIdHeader": "X-ClientId",
       "Limit": 30,

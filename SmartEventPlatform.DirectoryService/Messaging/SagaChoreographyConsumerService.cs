@@ -11,14 +11,6 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.DirectoryService.Messaging
 {
-    /// <summary>
-    /// DirectoryService konzumira dogadjaje iz saga-choreo.directory-service.queue.
-    ///
-    /// Poruke koje prima:
-    ///   SagaSpotReserved → Zabiljezi prisustvo na lokaciji (Korak 3)
-    ///                    → Uspjeh: objavi SagaAttendanceRecorded
-    ///                    → Greska: objavi SagaAttendanceFailed
-    /// </summary>
     public sealed class SagaChoreographyConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;

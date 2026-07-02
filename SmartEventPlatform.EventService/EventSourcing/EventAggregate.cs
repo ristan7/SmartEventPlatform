@@ -51,17 +51,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
         public int Version { get; set; }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    //  KONKRETNI AGREGAT: EventAggregate
-    // ─────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Event-Sourced reprezentacija stručnog događaja.
-    /// Identičan principu BankAccount iz primjera:
-    ///   • Stanje se nikada ne mijenja direktno (nema public settera koji se poziva izvana)
-    ///   • Svaka promjena ide kroz metodu koja kreira domenski događaj i poziva RaiseEvent()
-    ///   • Apply() je jedino mjesto koje direktno mijenja property-je
-    /// </summary>
     public class EventAggregate : AggregateRoot
     {
         public string EventName { get; private set; } = string.Empty;
@@ -75,15 +64,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         public bool IsCancelled { get; private set; }
         public string? CancellationReason { get; private set; }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  FACTORY METODA — jedini način kreiranja novog agregata
-        //  (Identično BankAccount.Create() iz primjera)
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Kreira novi stručni događaj. Validira poslovna pravila PRIJE generisanja domenskog događaja.
-        /// Nikada ne postavljamo stanje direktno — idemo kroz RaiseEvent.
-        /// </summary>
+       
         public static EventAggregate Create(
             long eventId,
             string eventName,
@@ -95,7 +76,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             string locationName,
             long eventTypeId)
         {
-            // ── VALIDACIJA POSLOVNIH PRAVILA ──────────────────────────────
             if (string.IsNullOrWhiteSpace(eventName))
                 throw new ArgumentException("Event name must not be empty.");
             if (durationInMinutes <= 0)
@@ -122,11 +102,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             return aggregate;
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  POSLOVNE OPERACIJE — svaka validira pa kreira domenski događaj
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>Promijeni naziv stručnog događaja.</summary>
         public void Rename(string newName)
         {
             EnsureNotCancelled();
@@ -142,7 +117,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             });
         }
 
-        /// <summary>Promijeni datum, vrijeme i trajanje stručnog događaja.</summary>
         public void Reschedule(DateTime newDateTime, int newDurationInMinutes)
         {
             EnsureNotCancelled();
@@ -160,7 +134,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             });
         }
 
-        /// <summary>Promijeni cijenu kotizacije.</summary>
         public void ChangeFee(decimal newFee)
         {
             EnsureNotCancelled();
@@ -174,7 +147,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             });
         }
 
-        /// <summary>Promijeni lokaciju stručnog događaja.</summary>
         public void ChangeLocation(long newLocationId, string newLocationName)
         {
             EnsureNotCancelled();
@@ -192,7 +164,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             });
         }
 
-        /// <summary>Otkaži stručni događaj. Otkazan događaj se ne može više mijenjati.</summary>
         public void Cancel(string reason)
         {
             EnsureNotCancelled();
@@ -205,9 +176,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             });
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  SNAPSHOT
-        // ─────────────────────────────────────────────────────────────────
 
         public override AggregateSnapshot CreateSnapshot()
         {
@@ -246,11 +214,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             IsCancelled = s.IsCancelled;
             CancellationReason = s.CancellationReason;
         }
-
-        // ─────────────────────────────────────────────────────────────────
-        //  APPLY — jedino mjesto gdje se stanje direktno mijenja
-        //  (Identičan switch iz BankAccount.Apply() u primjeru)
-        // ─────────────────────────────────────────────────────────────────
 
         protected override void Apply(EventDomainEvent @event)
         {
@@ -297,9 +260,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
             }
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  HELPER
-        // ─────────────────────────────────────────────────────────────────
 
         private void EnsureNotCancelled()
         {
@@ -308,14 +268,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    //  SNAPSHOT — identičan BankAccountSnapshot iz primjera
-    // ─────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Snapshot stanja EventAggregate u određenom trenutku.
-    /// Koristi se za efikasno učitavanje bez primjene svih historijskih događaja.
-    /// </summary>
     public class EventSnapshot : AggregateSnapshot
     {
         public string EventName { get; set; } = string.Empty;

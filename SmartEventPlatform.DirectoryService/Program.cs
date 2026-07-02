@@ -17,6 +17,7 @@ namespace SmartEventPlatform.DirectoryService
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
+            //outbox
             builder.Services.Configure<LocationUsageRabbitMqOptions>(
                 builder.Configuration.GetSection(LocationUsageRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<LocationUsageConsumerService>();
@@ -25,12 +26,11 @@ namespace SmartEventPlatform.DirectoryService
                 builder.Configuration.GetSection(SpeakerUsageRabbitMqOptions.SectionName));
             builder.Services.AddHostedService<SpeakerUsageConsumerService>();
 
-            // ── Saga Koreografija ─────────────────────────────────────────
+            //koreografija
             builder.Services.Configure<SagaChoreographyRabbitMqOptions>(
                 builder.Configuration.GetSection(SagaChoreographyRabbitMqOptions.SectionName));
             builder.Services.AddSingleton<ISagaChoreographyPublisher, SagaChoreographyPublisher>();
             builder.Services.AddHostedService<SagaChoreographyConsumerService>();
-            // ─────────────────────────────────────────────────────────────
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();

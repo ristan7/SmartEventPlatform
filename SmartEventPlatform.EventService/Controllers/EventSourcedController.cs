@@ -3,15 +3,6 @@ using SmartEventPlatform.EventService.EventSourcing;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
-    /// <summary>
-    /// API za upravljanje stručnim događajima kroz Event Sourcing.
-    ///
-    /// Svaki endpoint poziva odgovarajuću metodu na EventAggregate (koja generiše domenski događaj),
-    /// a potom EventStoreRepository.SaveAsync() persistira taj događaj u bazu.
-    ///
-    /// Napomena: ovaj modul trenutno postoji kao samostalan kontroler, nije povezan
-    /// sa API Gateway rutama niti sa Web frontend-om — testira se direktno preko Swaggera.
-    /// </summary>
     [ApiController]
     [Route("api/eventsourced")]
     public class EventSourcedController : ControllerBase
@@ -86,8 +77,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(ToResponse(aggregate));
         }
 
-        // ── PUT /api/eventsourced/{id}/reschedule ────────────────────────
-        // Promijeni datum/vrijme i trajanje stručnog događaja
 
         [HttpPut("{id:long}/reschedule")]
         public async Task<IActionResult> Reschedule(long id, [FromBody] RescheduleEventRequest req, CancellationToken ct)
@@ -102,8 +91,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(ToResponse(aggregate));
         }
 
-        // ── PUT /api/eventsourced/{id}/fee ───────────────────────────────
-        // Promijeni cijenu kotizacije
 
         [HttpPut("{id:long}/fee")]
         public async Task<IActionResult> ChangeFee(long id, [FromBody] ChangeFeeRequest req, CancellationToken ct)
@@ -118,8 +105,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(ToResponse(aggregate));
         }
 
-        // ── PUT /api/eventsourced/{id}/location ──────────────────────────
-        // Promijeni lokaciju stručnog događaja
 
         [HttpPut("{id:long}/location")]
         public async Task<IActionResult> ChangeLocation(long id, [FromBody] ChangeLocationRequest req, CancellationToken ct)
@@ -134,8 +119,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(ToResponse(aggregate));
         }
 
-        // ── POST /api/eventsourced/{id}/cancel ───────────────────────────
-        // Otkaži stručni događaj (nema povratka — poslovno pravilo)
 
         [HttpPost("{id:long}/cancel")]
         public async Task<IActionResult> Cancel(long id, [FromBody] CancelEventRequest req, CancellationToken ct)
@@ -150,8 +133,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(ToResponse(aggregate));
         }
 
-        // ── POST /api/eventsourced/{id}/snapshot ─────────────────────────
-        // Kreiraj snapshot trenutnog stanja (identično CreateBankAccountSnapshot() iz primjera)
 
         [HttpPost("{id:long}/snapshot")]
         public async Task<IActionResult> CreateSnapshot(long id, CancellationToken ct)

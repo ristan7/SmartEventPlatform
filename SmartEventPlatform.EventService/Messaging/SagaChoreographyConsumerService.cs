@@ -11,14 +11,6 @@ using System.Text.Json;
 
 namespace SmartEventPlatform.EventService.Messaging
 {
-    /// <summary>
-    /// EventService konzumira dogadjaje iz saga-choreo.event-service.queue.
-    ///
-    /// Poruke koje prima:
-    ///   SagaChoreographyStarted   → Rezervisi mjesto (Korak 2)
-    ///   SagaAttendanceFailed      → Oslobodi rezervaciju (kompenzacija K2) → objavi SpotReleased
-    ///   SagaRegistrationConfirmed → Finalizuj rezervaciju u EventRegistrationTracker (Korak 4b)
-    /// </summary>
     public sealed class SagaChoreographyConsumerService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
@@ -140,7 +132,7 @@ namespace SmartEventPlatform.EventService.Messaging
             // CorrelationId (Guid) se pretvara u deterministican long za SagaSpotReservation.SagaId
             long sagaIdAsLong = Math.Abs(evt.CorrelationId.GetHashCode());
 
-            // Idempotentnost: vec postoji rezervacija za ovu Sagu?
+            // Idempotentnost: vec postoji rezervacija za ovu Sagu
             var existingReservation = await db.SagaSpotReservations
                 .FirstOrDefaultAsync(r => r.SagaId == sagaIdAsLong, ct);
 
@@ -237,7 +229,6 @@ namespace SmartEventPlatform.EventService.Messaging
             {
                 db.SagaSpotReservations.Remove(reservation);
                 await db.SaveChangesAsync(ct);
-                // NOVO
                 _logger.LogInformation("[SagaChoreo-ES] Kompenzacija K2: Rezervacija uklonjena za SagaId={SagaId}.", sagaIdAsLong);
             }
             else
