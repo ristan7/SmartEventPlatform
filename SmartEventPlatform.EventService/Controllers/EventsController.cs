@@ -1,11 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Polly;
 using SmartEventPlatform.Contracts.Events;
-using SmartEventPlatform.EventService.Clients;
+using SmartEventPlatform.EventService.CQRS.Commands;
+using SmartEventPlatform.EventService.CQRS.Queries;
 using SmartEventPlatform.EventService.Data;
-using SmartEventPlatform.EventService.Models;
-using System.Diagnostics.Metrics;
 
 namespace SmartEventPlatform.EventService.Controllers
 {
@@ -13,128 +11,155 @@ namespace SmartEventPlatform.EventService.Controllers
     [ApiController]
     public class EventsController : ControllerBase
     {
-        private readonly EventDbContext _context;
-        private readonly IDirectoryServiceClient _directoryServiceClient;
-        private readonly IRegistrationServiceClient _registrationServiceClient;
+        private readonly GetAllEventsQueryHandler _getAllHandler;
+        private readonly GetEventByIdQueryHandler _getByIdHandler;
+        private readonly GetUpcomingEventsQueryHandler _getUpcomingHandler;
 
-        //private static int _counter = 0;
+        private readonly CreateEventCommandHandler _createHandler;
+        private readonly UpdateEventCommandHandler _updateHandler;
+        private readonly DeleteEventCommandHandler _deleteHandler;
+
+        private readonly EventDbContext _context;
 
         public EventsController(
-            EventDbContext context,
-            IDirectoryServiceClient directoryServiceClient,
-            IRegistrationServiceClient registrationServiceClient)
+            GetAllEventsQueryHandler getAllHandler,
+            GetEventByIdQueryHandler getByIdHandler,
+            GetUpcomingEventsQueryHandler getUpcomingHandler,
+            CreateEventCommandHandler createHandler,
+            UpdateEventCommandHandler updateHandler,
+            DeleteEventCommandHandler deleteHandler,
+            EventDbContext context)
         {
+            _getAllHandler = getAllHandler;
+            _getByIdHandler = getByIdHandler;
+            _getUpcomingHandler = getUpcomingHandler;
+            _createHandler = createHandler;
+            _updateHandler = updateHandler;
+            _deleteHandler = deleteHandler;
             _context = context;
-            _directoryServiceClient = directoryServiceClient;
-            _registrationServiceClient = registrationServiceClient;
         }
+
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EventDto>>> GetAll()
         {
-            var events = await _context.Events
-                .Include(e => e.EventType)
-                .Include(e => e.EventSpeakers)
-                .OrderBy(e => e.EventDateTime)
-                .Select(e => new EventDto
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    Agenda = e.Agenda,
-                    EventDateTime = e.EventDateTime,
-                    DurationInMinutes = e.DurationInMinutes,
-                    RegistrationFee = e.RegistrationFee,
-
-                    LocationId = e.LocationId,
-                    LocationName = e.LocationNameSnapshot,
-                    LocationAddress = e.LocationAddressSnapshot,
-                    Capacity = e.LocationCapacitySnapshot,
-
-                    EventTypeId = e.EventTypeId,
-                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
-
-                    Speakers = e.EventSpeakers
-                        .OrderBy(es => es.Time)
-                        .Select(es => es.SpeakerFullNameSnapshot)
-                        .ToList()
-                })
-                .ToListAsync();
-
-            return Ok(events);
+            var dtos = await _getAllHandler.Handle(new GetAllEventsQuery());
+            return Ok(dtos);
         }
 
         [HttpGet("{id:long}")]
         public async Task<ActionResult<EventDto>> GetById(long id)
         {
-            var eventDto = await _context.Events
-                .Include(e => e.EventType)
-                .Include(e => e.EventSpeakers)
-                .Where(e => e.EventId == id)
-                .Select(e => new EventDto
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    Agenda = e.Agenda,
-                    EventDateTime = e.EventDateTime,
-                    DurationInMinutes = e.DurationInMinutes,
-                    RegistrationFee = e.RegistrationFee,
+            var dto = await _getByIdHandler.Handle(new GetEventByIdQuery { EventId = id });
 
-                    LocationId = e.LocationId,
-                    LocationName = e.LocationNameSnapshot,
-                    LocationAddress = e.LocationAddressSnapshot,
-                    Capacity = e.LocationCapacitySnapshot,
-
-                    EventTypeId = e.EventTypeId,
-                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
-
-                    Speakers = e.EventSpeakers
-                        .OrderBy(es => es.Time)
-                        .Select(es => es.SpeakerFullNameSnapshot)
-                        .ToList()
-                })
-                .FirstOrDefaultAsync();
-
-            if (eventDto == null)
-            {
+            if (dto == null)
                 return NotFound();
-            }
 
-            return Ok(eventDto);
+            return Ok(dto);
+        }
+
+        [HttpGet("upcoming")]
+        public async Task<ActionResult<IEnumerable<EventDto>>> GetUpcoming([FromQuery] DateTime? fromDate)
+        {
+            var dtos = await _getUpcomingHandler.Handle(
+                new GetUpcomingEventsQuery { FromDate = fromDate });
+
+            return Ok(dtos);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<long>> Create(EventCreateUpdateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
+            try
+            {
+                var newId = await _createHandler.Handle(new CreateEventCommand
+                {
+                    EventName = dto.EventName,
+                    Agenda = dto.Agenda,
+                    EventDateTime = dto.EventDateTime,
+                    DurationInMinutes = dto.DurationInMinutes,
+                    RegistrationFee = dto.RegistrationFee,
+                    LocationId = dto.LocationId,
+                    EventTypeId = dto.EventTypeId
+                });
+
+                return CreatedAtAction(nameof(GetById), new { id = newId }, newId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpPut("{id:long}")]
+        public async Task<IActionResult> Update(long id, EventCreateUpdateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
+            try
+            {
+                var found = await _updateHandler.Handle(new UpdateEventCommand
+                {
+                    EventId = id,
+                    EventName = dto.EventName,
+                    Agenda = dto.Agenda,
+                    EventDateTime = dto.EventDateTime,
+                    DurationInMinutes = dto.DurationInMinutes,
+                    RegistrationFee = dto.RegistrationFee,
+                    LocationId = dto.LocationId,
+                    EventTypeId = dto.EventTypeId
+                });
+
+                if (!found)
+                    return NotFound();
+
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpDelete("{id:long}")]
+        public async Task<IActionResult> Delete(long id)
+        {
+            try
+            {
+                var found = await _deleteHandler.Handle(new DeleteEventCommand { EventId = id });
+
+                if (!found)
+                    return NotFound();
+
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         [HttpGet("exists-for-location/{locationId:long}")]
         public async Task<ActionResult<bool>> ExistsForLocation(long locationId)
         {
-            var exists = await _context.Events
-                .AnyAsync(e => e.LocationId == locationId);
-
+            var exists = await _context.Events.AnyAsync(e => e.LocationId == locationId);
             return Ok(exists);
         }
 
         [HttpGet("exists-for-speaker/{speakerId:long}")]
         public async Task<ActionResult<bool>> ExistsForSpeaker(long speakerId)
         {
-            var exists = await _context.EventSpeakers
-                .AnyAsync(es => es.SpeakerId == speakerId);
-
+            var exists = await _context.EventSpeakers.AnyAsync(es => es.SpeakerId == speakerId);
             return Ok(exists);
         }
 
         [HttpGet("{id:long}/registration-info")]
         public async Task<ActionResult<EventRegistrationInfoDto>> GetRegistrationInfo(long id)
         {
-
-            //var attempt = Interlocked.Increment(ref _counter);
-
-            //if (attempt % 3 != 0)
-            //{
-            //    return StatusCode(500, "Simulated temporary EventService error.");
-            //}
-
-            //await Task.Delay(10000);
-
-            //return StatusCode(500, "Simulated EventService failure.");
-
             var dto = await _context.Events
                 .Where(e => e.EventId == id)
                 .Select(e => new EventRegistrationInfoDto
@@ -148,198 +173,20 @@ namespace SmartEventPlatform.EventService.Controllers
                 .FirstOrDefaultAsync();
 
             if (dto == null)
-            {
-                return Ok(new EventRegistrationInfoDto
-                {
-                    EventId = id,
-                    Exists = false
-                });
-            }
+                return Ok(new EventRegistrationInfoDto { EventId = id, Exists = false });
 
             return Ok(dto);
-        }
-
-        [HttpPost]
-        public async Task<ActionResult<long>> Create(EventCreateUpdateDto dto)
-        {
-            if (!ModelState.IsValid)
-            {
-                return ValidationProblem(ModelState);
-            }
-
-            var location = await _directoryServiceClient.GetLocationAsync(dto.LocationId);
-
-            if (location == null)
-            {
-                return BadRequest("Selected location does not exist.");
-            }
-
-            var eventTypeExists = await _context.EventTypes
-                .AnyAsync(et => et.EventTypeId == dto.EventTypeId);
-
-            if (!eventTypeExists)
-            {
-                return BadRequest("Selected event type does not exist.");
-            }
-
-            var newEvent = new Event
-            {
-                EventName = dto.EventName,
-                Agenda = dto.Agenda,
-                EventDateTime = dto.EventDateTime,
-                DurationInMinutes = dto.DurationInMinutes,
-                RegistrationFee = dto.RegistrationFee,
-                LocationId = dto.LocationId,
-                LocationNameSnapshot = location.LocationName,
-                LocationAddressSnapshot = location.Address,
-                LocationCapacitySnapshot = location.Capacity,
-                EventTypeId = dto.EventTypeId
-            };
-
-            _context.Events.Add(newEvent);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetById), new { id = newEvent.EventId }, newEvent.EventId);
-        }
-
-        [HttpPut("{id:long}")]
-        public async Task<IActionResult> Update(long id, EventCreateUpdateDto dto)
-        {
-            if (!ModelState.IsValid)
-            {
-                return ValidationProblem(ModelState);
-            }
-
-            var existingEvent = await _context.Events.FindAsync(id);
-
-            if (existingEvent == null)
-            {
-                return NotFound();
-            }
-
-            var location = await _directoryServiceClient.GetLocationAsync(dto.LocationId);
-
-            if (location == null)
-            {
-                return BadRequest("Selected location does not exist.");
-            }
-
-            var eventTypeExists = await _context.EventTypes
-                .AnyAsync(et => et.EventTypeId == dto.EventTypeId);
-
-            if (!eventTypeExists)
-            {
-                return BadRequest("Selected event type does not exist.");
-            }
-
-            existingEvent.EventName = dto.EventName;
-            existingEvent.Agenda = dto.Agenda;
-            existingEvent.EventDateTime = dto.EventDateTime;
-            existingEvent.DurationInMinutes = dto.DurationInMinutes;
-            existingEvent.RegistrationFee = dto.RegistrationFee;
-            existingEvent.LocationId = dto.LocationId;
-            existingEvent.LocationNameSnapshot = location.LocationName;
-            existingEvent.LocationAddressSnapshot = location.Address;
-            existingEvent.LocationCapacitySnapshot = location.Capacity;
-            existingEvent.EventTypeId = dto.EventTypeId;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!await EventExistsAsync(id))
-                {
-                    return NotFound();
-                }
-
-                throw;
-            }
-
-            return NoContent();
         }
 
         [HttpGet("{id:long}/delete-info")]
         public async Task<ActionResult<EventDto>> GetDeleteInfo(long id)
         {
-            var eventDto = await _context.Events
-                .Include(e => e.EventType)
-                .Where(e => e.EventId == id)
-                .Select(e => new EventDto
-                {
-                    EventId = e.EventId,
-                    EventName = e.EventName,
-                    EventDateTime = e.EventDateTime,
-                    LocationId = e.LocationId,
-                    LocationName = e.LocationNameSnapshot,
-                    LocationAddress = e.LocationAddressSnapshot,
-                    Capacity = e.LocationCapacitySnapshot,
-                    EventTypeId = e.EventTypeId,
-                    EventTypeName = e.EventType != null ? e.EventType.Name : string.Empty,
-                    Agenda = e.Agenda,
-                    DurationInMinutes = e.DurationInMinutes,
-                    RegistrationFee = e.RegistrationFee
-                })
-                .FirstOrDefaultAsync();
+            var dto = await _getByIdHandler.Handle(new GetEventByIdQuery { EventId = id });
 
-            if (eventDto == null)
-            {
+            if (dto == null)
                 return NotFound();
-            }
 
-            return Ok(eventDto);
-        }
-
-        [HttpDelete("{id:long}")]
-        public async Task<IActionResult> Delete(long id)
-        {
-            var existingEvent = await _context.Events
-                .Include(e => e.EventSpeakers)
-                .FirstOrDefaultAsync(e => e.EventId == id);
-
-            if (existingEvent == null)
-            {
-                return NotFound();
-            }
-
-            var deleteErrors = new List<string>();
-
-            var hasAssignedSpeakers = existingEvent.EventSpeakers.Any();
-
-            if (hasAssignedSpeakers)
-            {
-                deleteErrors.Add("This event cannot be deleted because it has assigned speakers.");
-            }
-
-            var hasRegistrations = await _registrationServiceClient.EventHasRegistrationsAsync(id);
-
-            if (hasRegistrations)
-            {
-                deleteErrors.Add("This event cannot be deleted because it has participant registrations.");
-            }
-
-            if (deleteErrors.Any())
-            {
-                return BadRequest(string.Join(" ", deleteErrors));
-            }
-
-            try
-            {
-                _context.Events.Remove(existingEvent);
-                await _context.SaveChangesAsync();
-
-                return NoContent();
-            }
-            catch (DbUpdateException)
-            {
-                return BadRequest("This event cannot be deleted because it is used by other records.");
-            }
-        }
-
-        private async Task<bool> EventExistsAsync(long id)
-        {
-            return await _context.Events.AnyAsync(e => e.EventId == id);
+            return Ok(dto);
         }
     }
 }

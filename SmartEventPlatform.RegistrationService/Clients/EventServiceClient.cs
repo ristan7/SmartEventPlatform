@@ -45,6 +45,88 @@ public sealed class EventServiceClient : IEventServiceClient
         });
     }
 
+    public Task<bool> ReserveSpotAsync(long eventId, long sagaId, CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.PostAsync(
+                $"/api/saga/events/{eventId}/reserve-spot?sagaId={sagaId}",
+                null,
+                cancellationToken);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                _logger.LogWarning(
+                    "[Saga {SagaId}] EventService vratio 409 - nema kapaciteta za EventId={EventId}.",
+                    sagaId, eventId);
+                return false;
+            }
+
+            response.EnsureSuccessStatusCode();
+            return true;
+        });
+    }
+
+    public Task ReleaseSpotAsync(long eventId, long sagaId, CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.DeleteAsync(
+                $"/api/saga/events/{eventId}/release-spot?sagaId={sagaId}",
+                cancellationToken);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning(
+                    "[Saga {SagaId}] EventService nije pronašao rezervaciju za release (EventId={EventId}). " +
+                    "Moguć ponovni pokušaj kompenzacije - nastavaljamo.",
+                    sagaId, eventId);
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+        });
+    }
+
+    public Task ConfirmSpotAsync(long eventId, long sagaId, CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(async () =>
+        {
+            using var response = await _httpClient.PostAsync(
+                $"/api/saga/events/{eventId}/confirm-spot?sagaId={sagaId}",
+                null,
+                cancellationToken);
+
+            response.EnsureSuccessStatusCode();
+        });
+    }
+
+    private async Task ExecuteAsync(Func<Task> operation)
+    {
+        await _retryPolicy.ExecuteAsync(async () =>
+        {
+            _circuitBreaker.EnsureCanExecute();
+            try
+            {
+                await operation();
+                _circuitBreaker.MarkSuccess();
+            }
+            catch (CircuitBreakerOpenException) { throw; }
+            catch (TaskCanceledException ex)
+            {
+                _circuitBreaker.MarkFailure();
+                _logger.LogWarning(ex, "EventService request timed out.");
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                _circuitBreaker.MarkFailure();
+                _logger.LogWarning(ex, "EventService request failed.");
+                throw;
+            }
+        });
+    }
+
     private async Task<T> ExecuteAsync<T>(Func<Task<T>> operation)
     {
         return await _retryPolicy.ExecuteAsync(async () =>

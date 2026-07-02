@@ -1,8 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using SmartEventPlatform.DirectoryService.Clients;
 using SmartEventPlatform.DirectoryService.Data;
 using SmartEventPlatform.DirectoryService.ErrorHandling;
-using SmartEventPlatform.DirectoryService.Resilience;
+using SmartEventPlatform.DirectoryService.Messaging;
 
 namespace SmartEventPlatform.DirectoryService
 {
@@ -12,31 +11,34 @@ namespace SmartEventPlatform.DirectoryService
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
             builder.Services.AddDbContext<DirectoryDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddProblemDetails();
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-            builder.Services.AddSingleton<EventServiceCircuitBreaker>();
+            //outbox
+            builder.Services.Configure<LocationUsageRabbitMqOptions>(
+                builder.Configuration.GetSection(LocationUsageRabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<LocationUsageConsumerService>();
 
-            builder.Services.AddHttpClient<IEventUsageClient, EventUsageClient>(client =>
-            {
-                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
-                client.Timeout = TimeSpan.FromSeconds(3);
-            });
+            builder.Services.Configure<SpeakerUsageRabbitMqOptions>(
+                builder.Configuration.GetSection(SpeakerUsageRabbitMqOptions.SectionName));
+            builder.Services.AddHostedService<SpeakerUsageConsumerService>();
+
+            //koreografija
+            builder.Services.Configure<SagaChoreographyRabbitMqOptions>(
+                builder.Configuration.GetSection(SagaChoreographyRabbitMqOptions.SectionName));
+            builder.Services.AddSingleton<ISagaChoreographyPublisher, SagaChoreographyPublisher>();
+            builder.Services.AddHostedService<SagaChoreographyConsumerService>();
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -44,14 +46,9 @@ namespace SmartEventPlatform.DirectoryService
             }
 
             app.UseExceptionHandler();
-
             app.UseHttpsRedirection();
-
             app.UseAuthorization();
-
-
             app.MapControllers();
-
             app.Run();
         }
     }

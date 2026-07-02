@@ -22,7 +22,41 @@ namespace SmartEventPlatform.RegistrationService.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Participant", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Messaging.OutboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.ToTable("OutboxMessages", (string)null);
+                });
+
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Participant", b =>
                 {
                     b.Property<long>("ParticipantId")
                         .ValueGeneratedOnAdd()
@@ -53,7 +87,7 @@ namespace SmartEventPlatform.RegistrationService.Migrations
                     b.ToTable("Participants", (string)null);
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Registration", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Registration", b =>
                 {
                     b.Property<long>("RegistrationId")
                         .ValueGeneratedOnAdd()
@@ -70,6 +104,13 @@ namespace SmartEventPlatform.RegistrationService.Migrations
                     b.Property<DateTime>("RegistrationDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Confirmed");
+
                     b.HasKey("RegistrationId");
 
                     b.HasIndex("ParticipantId");
@@ -80,9 +121,124 @@ namespace SmartEventPlatform.RegistrationService.Migrations
                     b.ToTable("Registrations", (string)null);
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Registration", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.SagaChoreographyState", b =>
                 {
-                    b.HasOne("SmartEventPlatformWeb.RegistrationService.Models.Participant", "Participant")
+                    b.Property<long>("SagaId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("SagaId"));
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("EventId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EventName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("LocationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ParticipantEmail")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ParticipantFirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("ParticipantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ParticipantLastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("RegistrationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("RegistrationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("SagaId");
+
+                    b.HasIndex("CorrelationId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("SagaChoreographyStates", (string)null);
+                });
+
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.SagaState", b =>
+                {
+                    b.Property<long>("SagaId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("SagaId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("EventId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("LocationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ParticipantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("RegistrationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("SagaId");
+
+                    b.HasIndex("RegistrationId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("SagaStates", (string)null);
+                });
+
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Registration", b =>
+                {
+                    b.HasOne("SmartEventPlatform.RegistrationService.Models.Participant", "Participant")
                         .WithMany("Registrations")
                         .HasForeignKey("ParticipantId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -91,7 +247,7 @@ namespace SmartEventPlatform.RegistrationService.Migrations
                     b.Navigation("Participant");
                 });
 
-            modelBuilder.Entity("SmartEventPlatformWeb.RegistrationService.Models.Participant", b =>
+            modelBuilder.Entity("SmartEventPlatform.RegistrationService.Models.Participant", b =>
                 {
                     b.Navigation("Registrations");
                 });

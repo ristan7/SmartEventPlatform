@@ -1,4 +1,3 @@
-
 using SmartEventPlatformWeb.Filters;
 
 namespace SmartEventPlatformWeb
@@ -9,46 +8,29 @@ namespace SmartEventPlatformWeb
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
-            builder.Services.AddHttpClient("EventService", client =>
+            
+            builder.Services.AddHttpClient("ApiGateway", client =>
             {
-                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:EventService"]!);
+                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:ApiGateway"]!);
                 client.Timeout = TimeSpan.FromSeconds(15);
+                client.DefaultRequestHeaders.Add("X-ClientId", "web-frontend");
             });
-
-            builder.Services.AddHttpClient("RegistrationService", client =>
-            {
-                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:RegistrationService"]!);
-                client.Timeout = TimeSpan.FromSeconds(15);
-            });
-
-            builder.Services.AddHttpClient("DirectoryService", client =>
-            {
-                client.BaseAddress = new Uri(builder.Configuration["ServiceEndpoints:DirectoryService"]!);
-                client.Timeout = TimeSpan.FromSeconds(15);
-            });
-
 
             builder.Services.AddControllersWithViews(options =>
             {
                 options.Filters.Add<MvcExceptionLoggingFilter>();
             });
 
-
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Home/Error");
-                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
 
             app.UseHttpsRedirection();
             app.UseRouting();
-
             app.UseAuthorization();
 
             app.MapStaticAssets();

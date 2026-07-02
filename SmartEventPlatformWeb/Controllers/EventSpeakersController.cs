@@ -23,9 +23,8 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventSpeakers = await GetListAsync<EventSpeakerDto>(client, "api/eventspeakers");
-                var eventSpeakers = await ApiHttpHelper.GetListAsync<EventSpeakerDto>(client, "api/eventspeakers");
+                var client = CreateClient();
+                var eventSpeakers = await ApiHttpHelper.GetListAsync<EventSpeakerDto>(client, "gateway/eventspeakers");
 
                 var vm = eventSpeakers
                     .OrderBy(es => es.EventName)
@@ -62,21 +61,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Details(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventSpeaker = await GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id.Value}");
-                var eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id.Value}");
+                var client = CreateClient();
+                var eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"gateway/eventspeakers/{id.Value}");
 
-                if (eventSpeaker == null)
-                {
-                    return NotFound();
-                }
+                if (eventSpeaker == null) return NotFound();
 
                 var vm = new EventSpeakerDetailsViewModel
                 {
@@ -109,10 +101,7 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Create()
         {
-            var vm = new EventSpeakerCreateViewModel
-            {
-                Time = DateTime.Now
-            };
+            var vm = new EventSpeakerCreateViewModel { Time = DateTime.Now };
 
             try
             {
@@ -141,7 +130,7 @@ namespace SmartEventPlatformWeb.Controllers
         {
             if (!ModelState.IsValid)
             {
-                await PopulateEventSpeakerCreateFormListsAsync(vm);
+                await PopulateCreateFormListsAsync(vm);
                 return View(vm);
             }
 
@@ -153,8 +142,7 @@ namespace SmartEventPlatformWeb.Controllers
                 {
                     ModelState.AddModelError(nameof(vm.Time),
                         "Speaker time must be within the selected event duration.");
-
-                    await PopulateEventSpeakerCreateFormListsAsync(vm);
+                    await PopulateCreateFormListsAsync(vm);
                     return View(vm);
                 }
 
@@ -166,14 +154,13 @@ namespace SmartEventPlatformWeb.Controllers
                     Time = vm.Time
                 };
 
-                var client = CreateEventServiceClient();
-                //await PostAndReadIdAsync(client, "api/eventspeakers", dto);
-                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/eventspeakers", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "gateway/eventspeakers", dto);
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The event speaker assignment could not be created.");
-                    await PopulateEventSpeakerCreateFormListsAsync(vm);
+                    await PopulateCreateFormListsAsync(vm);
                     return View(vm);
                 }
 
@@ -192,27 +179,20 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while creating the event speaker assignment.");
             }
 
-            await PopulateEventSpeakerCreateFormListsAsync(vm);
+            await PopulateCreateFormListsAsync(vm);
             return View(vm);
         }
 
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventSpeaker = await GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id.Value}");
-                var eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id.Value}");
+                var client = CreateClient();
+                var eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"gateway/eventspeakers/{id.Value}");
 
-                if (eventSpeaker == null)
-                {
-                    return NotFound();
-                }
+                if (eventSpeaker == null) return NotFound();
 
                 var vm = new EventSpeakerEditViewModel
                 {
@@ -247,14 +227,11 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(long id, EventSpeakerEditViewModel vm)
         {
-            if (id != vm.EventSpeakerId)
-            {
-                return NotFound();
-            }
+            if (id != vm.EventSpeakerId) return NotFound();
 
             if (!ModelState.IsValid)
             {
-                await PopulateEventSpeakerEditFormListsAsync(vm);
+                await PopulateEditFormListsAsync(vm);
                 return View(vm);
             }
 
@@ -266,8 +243,7 @@ namespace SmartEventPlatformWeb.Controllers
                 {
                     ModelState.AddModelError(nameof(vm.Time),
                         "Speaker time must be within the selected event duration.");
-
-                    await PopulateEventSpeakerEditFormListsAsync(vm);
+                    await PopulateEditFormListsAsync(vm);
                     return View(vm);
                 }
 
@@ -279,14 +255,13 @@ namespace SmartEventPlatformWeb.Controllers
                     Time = vm.Time
                 };
 
-                var client = CreateEventServiceClient();
-                //await PutAsync(client, $"api/eventspeakers/{id}", dto);
-                var result = await ApiHttpHelper.PutAsync(client, $"api/eventspeakers/{id}", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PutAsync(client, $"gateway/eventspeakers/{id}", dto);
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The event speaker assignment could not be updated.");
-                    await PopulateEventSpeakerEditFormListsAsync(vm);
+                    await PopulateEditFormListsAsync(vm);
                     return View(vm);
                 }
 
@@ -305,31 +280,22 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while updating the event speaker assignment.");
             }
 
-            await PopulateEventSpeakerEditFormListsAsync(vm);
+            await PopulateEditFormListsAsync(vm);
             return View(vm);
         }
 
         public async Task<IActionResult> Delete(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateEventServiceClient();
-                //var eventSpeaker = await GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id.Value}");
-                var eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id.Value}");
+                var client = CreateClient();
+                var eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"gateway/eventspeakers/{id.Value}");
 
-                if (eventSpeaker == null)
-                {
-                    return NotFound();
-                }
+                if (eventSpeaker == null) return NotFound();
 
-                var vm = MapToDeleteViewModel(eventSpeaker);
-
-                return View(vm);
+                return View(MapToDeleteViewModel(eventSpeaker));
             }
             catch (TaskCanceledException)
             {
@@ -355,27 +321,18 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateEventServiceClient();
+                var client = CreateClient();
+                eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"gateway/eventspeakers/{id}");
 
-                //eventSpeaker = await GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id}");
-                eventSpeaker = await ApiHttpHelper.GetNullableAsync<EventSpeakerDto>(client, $"api/eventspeakers/{id}");
+                if (eventSpeaker == null) return NotFound();
 
-                if (eventSpeaker == null)
-                {
-                    return NotFound();
-                }
-
-                //await DeleteAsync(client, $"api/eventspeakers/{id}");
-                var result = await ApiHttpHelper.DeleteAsync(client, $"api/eventspeakers/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"gateway/eventspeakers/{id}");
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The event speaker assignment could not be deleted.");
-
-                    var deleteVm = MapToDeleteViewModel(eventSpeaker);
-                    return View("Delete", deleteVm);
+                    return View("Delete", MapToDeleteViewModel(eventSpeaker));
                 }
-
 
                 return RedirectToAction(nameof(Index));
             }
@@ -392,25 +349,17 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the event speaker assignment.");
             }
 
-            if (eventSpeaker == null)
-            {
-                return RedirectToAction(nameof(Index));
-            }
+            if (eventSpeaker == null) return RedirectToAction(nameof(Index));
 
-            var vm = MapToDeleteViewModel(eventSpeaker);
-            return View("Delete", vm);
+            return View("Delete", MapToDeleteViewModel(eventSpeaker));
         }
 
         private async Task<bool> IsSpeakerTimeInsideEventAsync(long eventId, DateTime speakerTime)
         {
-            var client = CreateEventServiceClient();
-            //var selectedEvent = await GetNullableAsync<EventDto>(client, $"api/events/{eventId}");
-            var selectedEvent = await ApiHttpHelper.GetNullableAsync<EventDto>(client, $"api/events/{eventId}");
+            var client = CreateClient();
+            var selectedEvent = await ApiHttpHelper.GetNullableAsync<EventDto>(client, $"gateway/events/{eventId}");
 
-            if (selectedEvent == null)
-            {
-                return false;
-            }
+            if (selectedEvent == null) return false;
 
             var eventStart = selectedEvent.EventDateTime;
             var eventEnd = selectedEvent.EventDateTime.AddMinutes(selectedEvent.DurationInMinutes);
@@ -420,9 +369,8 @@ namespace SmartEventPlatformWeb.Controllers
 
         private async Task<List<SelectListItem>> GetEventsSelectListAsync()
         {
-            var client = CreateEventServiceClient();
-            //var events = await GetListAsync<EventDto>(client, "api/events");
-            var events = await ApiHttpHelper.GetListAsync<EventDto>(client, "api/events");
+            var client = CreateClient();
+            var events = await ApiHttpHelper.GetListAsync<EventDto>(client, "gateway/events");
 
             return events
                 .OrderBy(e => e.EventName)
@@ -436,9 +384,8 @@ namespace SmartEventPlatformWeb.Controllers
 
         private async Task<List<SelectListItem>> GetSpeakersSelectListAsync()
         {
-            var client = CreateDirectoryServiceClient();
-            //var speakers = await GetListAsync<SpeakerDto>(client, "api/speakers");
-            var speakers = await ApiHttpHelper.GetListAsync<SpeakerDto>(client, "api/speakers");
+            var client = CreateClient();
+            var speakers = await ApiHttpHelper.GetListAsync<SpeakerDto>(client, "gateway/speakers");
 
             return speakers
                 .OrderBy(s => s.LastName)
@@ -451,7 +398,7 @@ namespace SmartEventPlatformWeb.Controllers
                 .ToList();
         }
 
-        private async Task PopulateEventSpeakerCreateFormListsAsync(EventSpeakerCreateViewModel vm)
+        private async Task PopulateCreateFormListsAsync(EventSpeakerCreateViewModel vm)
         {
             try
             {
@@ -465,7 +412,7 @@ namespace SmartEventPlatformWeb.Controllers
             }
         }
 
-        private async Task PopulateEventSpeakerEditFormListsAsync(EventSpeakerEditViewModel vm)
+        private async Task PopulateEditFormListsAsync(EventSpeakerEditViewModel vm)
         {
             try
             {
@@ -479,28 +426,17 @@ namespace SmartEventPlatformWeb.Controllers
             }
         }
 
-        private static EventSpeakerDeleteViewModel MapToDeleteViewModel(EventSpeakerDto eventSpeaker)
-        {
-            return new EventSpeakerDeleteViewModel
+        private static EventSpeakerDeleteViewModel MapToDeleteViewModel(EventSpeakerDto es) =>
+            new EventSpeakerDeleteViewModel
             {
-                EventSpeakerId = eventSpeaker.EventSpeakerId,
-                EventName = eventSpeaker.EventName,
-                SpeakerFullName = eventSpeaker.SpeakerFullName,
-                Topic = eventSpeaker.Topic,
-                Time = eventSpeaker.Time
+                EventSpeakerId = es.EventSpeakerId,
+                EventName = es.EventName,
+                SpeakerFullName = es.SpeakerFullName,
+                Topic = es.Topic,
+                Time = es.Time
             };
-        }
 
-        private HttpClient CreateEventServiceClient()
-        {
-            return _httpClientFactory.CreateClient("EventService");
-        }
-
-        private HttpClient CreateDirectoryServiceClient()
-        {
-            return _httpClientFactory.CreateClient("DirectoryService");
-        }
-
-        
+        private HttpClient CreateClient() =>
+            _httpClientFactory.CreateClient("ApiGateway");
     }
 }

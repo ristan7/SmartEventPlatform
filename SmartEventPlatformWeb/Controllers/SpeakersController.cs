@@ -21,9 +21,8 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //var speakers = await GetListAsync<SpeakerDto>(client, "api/speakers");
-                var speakers = await ApiHttpHelper.GetListAsync<SpeakerDto>(client, "api/speakers");
+                var client = CreateClient();
+                var speakers = await ApiHttpHelper.GetListAsync<SpeakerDto>(client, "gateway/speakers");
 
                 var vm = speakers
                     .OrderBy(s => s.LastName)
@@ -58,26 +57,16 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Details(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var directoryClient = CreateDirectoryServiceClient();
-                var eventClient = CreateEventServiceClient();
+                var client = CreateClient();
+                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"gateway/speakers/{id.Value}");
 
-                //var speaker = await GetNullableAsync<SpeakerDto>(directoryClient, $"api/speakers/{id.Value}");
-                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(directoryClient, $"api/speakers/{id.Value}");
+                if (speaker == null) return NotFound();
 
-                if (speaker == null)
-                {
-                    return NotFound();
-                }
-
-                //var eventSpeakers = await GetListAsync<EventSpeakerDto>(eventClient, $"api/eventspeakers/by-speaker/{id.Value}");
-                var eventSpeakers = await ApiHttpHelper.GetListAsync<EventSpeakerDto>(eventClient, $"api/eventspeakers/by-speaker/{id.Value}");
+                var eventSpeakers = await ApiHttpHelper.GetListAsync<EventSpeakerDto>(client, $"gateway/eventspeakers/by-speaker/{id.Value}");
 
                 var vm = new SpeakerDetailsViewModel
                 {
@@ -127,10 +116,7 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(SpeakerCreateViewModel vm)
         {
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
+            if (!ModelState.IsValid) return View(vm);
 
             var dto = new SpeakerDto
             {
@@ -142,9 +128,8 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //await PostAndReadIdAsync(client, "api/speakers", dto);
-                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/speakers", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "gateway/speakers", dto);
 
                 if (!result.Success)
                 {
@@ -172,21 +157,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
-                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                var client = CreateClient();
+                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"gateway/speakers/{id.Value}");
 
-                if (speaker == null)
-                {
-                    return NotFound();
-                }
+                if (speaker == null) return NotFound();
 
                 var vm = new SpeakerEditViewModel
                 {
@@ -219,15 +197,8 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(long id, SpeakerEditViewModel vm)
         {
-            if (id != vm.SpeakerId)
-            {
-                return NotFound();
-            }
-
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
+            if (id != vm.SpeakerId) return NotFound();
+            if (!ModelState.IsValid) return View(vm);
 
             var dto = new SpeakerDto
             {
@@ -240,9 +211,8 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //await PutAsync(client, $"api/speakers/{id}", dto);
-                var result = await ApiHttpHelper.PutAsync(client, $"api/speakers/{id}", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PutAsync(client, $"gateway/speakers/{id}", dto);
 
                 if (!result.Success)
                 {
@@ -270,25 +240,16 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Delete(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateDirectoryServiceClient();
-                //var speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
-                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id.Value}");
+                var client = CreateClient();
+                var speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"gateway/speakers/{id.Value}");
 
-                if (speaker == null)
-                {
-                    return NotFound();
-                }
+                if (speaker == null) return NotFound();
 
-                var vm = MapToDeleteViewModel(speaker);
-
-                return View(vm);
+                return View(MapToDeleteViewModel(speaker));
             }
             catch (TaskCanceledException)
             {
@@ -314,24 +275,17 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateDirectoryServiceClient();
+                var client = CreateClient();
+                speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"gateway/speakers/{id}");
 
-                //speaker = await GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id}");
-                speaker = await ApiHttpHelper.GetNullableAsync<SpeakerDto>(client, $"api/speakers/{id}");
+                if (speaker == null) return NotFound();
 
-                if (speaker == null)
-                {
-                    return NotFound();
-                }
-
-                //await DeleteAsync(client, $"api/speakers/{id}");
-                var result = await ApiHttpHelper.DeleteAsync(client, $"api/speakers/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"gateway/speakers/{id}");
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The speaker could not be deleted.");
-                    var deleteVm = MapToDeleteViewModel(speaker);
-                    return View("Delete", deleteVm);
+                    return View("Delete", MapToDeleteViewModel(speaker));
                 }
 
                 return RedirectToAction(nameof(Index));
@@ -349,18 +303,13 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the speaker.");
             }
 
-            if (speaker == null)
-            {
-                return RedirectToAction(nameof(Index));
-            }
+            if (speaker == null) return RedirectToAction(nameof(Index));
 
-            var vm = MapToDeleteViewModel(speaker);
-            return View("Delete", vm);
+            return View("Delete", MapToDeleteViewModel(speaker));
         }
 
-        private static SpeakerDeleteViewModel MapToDeleteViewModel(SpeakerDto speaker)
-        {
-            return new SpeakerDeleteViewModel
+        private static SpeakerDeleteViewModel MapToDeleteViewModel(SpeakerDto speaker) =>
+            new SpeakerDeleteViewModel
             {
                 SpeakerId = speaker.SpeakerId,
                 FirstName = speaker.FirstName,
@@ -368,16 +317,8 @@ namespace SmartEventPlatformWeb.Controllers
                 Title = speaker.Title,
                 ExpertiseAreas = speaker.ExpertiseAreas
             };
-        }
 
-        private HttpClient CreateEventServiceClient()
-        {
-            return _httpClientFactory.CreateClient("EventService");
-        }
-
-        private HttpClient CreateDirectoryServiceClient()
-        {
-            return _httpClientFactory.CreateClient("DirectoryService");
-        }
+        private HttpClient CreateClient() =>
+            _httpClientFactory.CreateClient("ApiGateway");
     }
 }

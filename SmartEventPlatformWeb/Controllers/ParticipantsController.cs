@@ -20,9 +20,8 @@ namespace SmartEventPlatformWeb.Controllers
         {
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var participants = await GetListAsync<ParticipantDto>(client, "api/participants");
-                var participants = await ApiHttpHelper.GetListAsync<ParticipantDto>(client, "api/participants");
+                var client = CreateClient();
+                var participants = await ApiHttpHelper.GetListAsync<ParticipantDto>(client, "gateway/participants");
 
                 var vm = participants
                     .OrderBy(p => p.LastName)
@@ -56,21 +55,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Details(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
-                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                var client = CreateClient();
+                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"gateway/participants/{id.Value}");
 
-                if (participant == null)
-                {
-                    return NotFound();
-                }
+                if (participant == null) return NotFound();
 
                 var vm = new ParticipantDetailsViewModel
                 {
@@ -107,10 +99,7 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(ParticipantCreateViewModel vm)
         {
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
+            if (!ModelState.IsValid) return View(vm);
 
             var dto = new ParticipantDto
             {
@@ -121,9 +110,8 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //await PostAndReadIdAsync(client, "api/participants", dto);
-                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "api/participants", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PostAndReadIdAsync(client, "gateway/participants", dto);
 
                 if (!result.Success)
                 {
@@ -151,21 +139,14 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Edit(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
-                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                var client = CreateClient();
+                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"gateway/participants/{id.Value}");
 
-                if (participant == null)
-                {
-                    return NotFound();
-                }
+                if (participant == null) return NotFound();
 
                 var vm = new ParticipantEditViewModel
                 {
@@ -197,15 +178,8 @@ namespace SmartEventPlatformWeb.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(long id, ParticipantEditViewModel vm)
         {
-            if (id != vm.ParticipantId)
-            {
-                return NotFound();
-            }
-
-            if (!ModelState.IsValid)
-            {
-                return View(vm);
-            }
+            if (id != vm.ParticipantId) return NotFound();
+            if (!ModelState.IsValid) return View(vm);
 
             var dto = new ParticipantDto
             {
@@ -217,9 +191,8 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //await PutAsync(client, $"api/participants/{id}", dto);
-                var result = await ApiHttpHelper.PutAsync(client, $"api/participants/{id}", dto);
+                var client = CreateClient();
+                var result = await ApiHttpHelper.PutAsync(client, $"gateway/participants/{id}", dto);
 
                 if (!result.Success)
                 {
@@ -247,25 +220,16 @@ namespace SmartEventPlatformWeb.Controllers
 
         public async Task<IActionResult> Delete(long? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             try
             {
-                var client = CreateRegistrationServiceClient();
-                //var participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
-                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id.Value}");
+                var client = CreateClient();
+                var participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"gateway/participants/{id.Value}");
 
-                if (participant == null)
-                {
-                    return NotFound();
-                }
+                if (participant == null) return NotFound();
 
-                var vm = MapToDeleteViewModel(participant);
-
-                return View(vm);
+                return View(MapToDeleteViewModel(participant));
             }
             catch (TaskCanceledException)
             {
@@ -291,24 +255,17 @@ namespace SmartEventPlatformWeb.Controllers
 
             try
             {
-                var client = CreateRegistrationServiceClient();
+                var client = CreateClient();
+                participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"gateway/participants/{id}");
 
-                //participant = await GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
-                participant = await ApiHttpHelper.GetNullableAsync<ParticipantDto>(client, $"api/participants/{id}");
+                if (participant == null) return NotFound();
 
-                if (participant == null)
-                {
-                    return NotFound();
-                }
-
-                //await DeleteAsync(client, $"api/participants/{id}");
-                var result = await ApiHttpHelper.DeleteAsync(client, $"api/participants/{id}");
+                var result = await ApiHttpHelper.DeleteAsync(client, $"gateway/participants/{id}");
 
                 if (!result.Success)
                 {
                     ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "The participant could not be deleted.");
-                    var deleteVm = MapToDeleteViewModel(participant);
-                    return View("Delete", deleteVm);
+                    return View("Delete", MapToDeleteViewModel(participant));
                 }
 
                 return RedirectToAction(nameof(Index));
@@ -326,29 +283,21 @@ namespace SmartEventPlatformWeb.Controllers
                 ModelState.AddModelError(string.Empty, "An unexpected error occurred while deleting the participant.");
             }
 
-            if (participant == null)
-            {
-                return RedirectToAction(nameof(Index));
-            }
+            if (participant == null) return RedirectToAction(nameof(Index));
 
-            var vm = MapToDeleteViewModel(participant);
-            return View("Delete", vm);
+            return View("Delete", MapToDeleteViewModel(participant));
         }
 
-        private static ParticipantDeleteViewModel MapToDeleteViewModel(ParticipantDto participant)
-        {
-            return new ParticipantDeleteViewModel
+        private static ParticipantDeleteViewModel MapToDeleteViewModel(ParticipantDto p) =>
+            new ParticipantDeleteViewModel
             {
-                ParticipantId = participant.ParticipantId,
-                FirstName = participant.FirstName,
-                LastName = participant.LastName,
-                Email = participant.Email
+                ParticipantId = p.ParticipantId,
+                FirstName = p.FirstName,
+                LastName = p.LastName,
+                Email = p.Email
             };
-        }
 
-        private HttpClient CreateRegistrationServiceClient()
-        {
-            return _httpClientFactory.CreateClient("RegistrationService");
-        }
+        private HttpClient CreateClient() =>
+            _httpClientFactory.CreateClient("ApiGateway");
     }
 }

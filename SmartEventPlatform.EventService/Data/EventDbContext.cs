@@ -1,4 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SmartEventPlatform.EventService.EventSourcing;
+using SmartEventPlatform.EventService.Messaging;
 using SmartEventPlatform.EventService.Models;
 
 namespace SmartEventPlatform.EventService.Data
@@ -13,6 +15,15 @@ namespace SmartEventPlatform.EventService.Data
         public DbSet<Event> Events { get; set; }
         public DbSet<EventSpeaker> EventSpeakers { get; set; }
         public DbSet<EventType> EventTypes { get; set; }
+
+        public DbSet<OutboxMessage> OutboxMessages { get; set; }
+        public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
+        public DbSet<EventRegistrationTracker> EventRegistrationTrackers { get; set; }
+
+        public DbSet<SagaSpotReservation> SagaSpotReservations { get; set; }
+
+        public DbSet<EventStoreEntry> EventStoreEntries { get; set; }
+        public DbSet<EventSnapshotEntry> EventSnapshotEntries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -58,6 +69,87 @@ namespace SmartEventPlatform.EventService.Data
                     .WithMany(ev => ev.EventSpeakers)
                     .HasForeignKey(es => es.EventId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<OutboxMessage>(entity =>
+            {
+                entity.ToTable("OutboxMessages");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.MessageId)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.EventType)
+                    .IsRequired();
+
+                entity.Property(e => e.Payload)
+                    .IsRequired();
+
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.MessageId).IsUnique();
+            });
+
+            modelBuilder.Entity<ProcessedMessage>(entity =>
+            {
+                entity.ToTable("ProcessedMessages");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.MessageId).IsUnique();
+            });
+
+            modelBuilder.Entity<EventRegistrationTracker>(entity =>
+            {
+                entity.ToTable("EventRegistrationTrackers");
+                entity.HasKey(e => e.EventId);
+
+                entity.Property(e => e.EventId)
+                      .ValueGeneratedNever();
+
+                entity.Property(e => e.RegistrationCount)
+                      .IsRequired();
+            });
+
+            modelBuilder.Entity<SagaSpotReservation>(entity =>
+            {
+                entity.ToTable("SagaSpotReservations");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.SagaId).IsRequired();
+                entity.Property(e => e.EventId).IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired();
+
+                entity.HasIndex(e => e.SagaId).IsUnique();
+                entity.HasIndex(e => e.EventId);
+            });
+
+
+            modelBuilder.Entity<EventStoreEntry>(entity =>
+            {
+                entity.ToTable("EventStoreEntries");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.AggregateId).IsRequired();
+                entity.Property(e => e.EventType).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Payload).IsRequired();
+                entity.Property(e => e.Version).IsRequired();
+                entity.Property(e => e.OccurredAt).IsRequired().HasColumnType("datetime2");
+
+                // Indeks po AggregateId + Version za brzo učitavanje historije
+                entity.HasIndex(e => new { e.AggregateId, e.Version }).IsUnique();
+                entity.HasIndex(e => e.AggregateId);
+            });
+
+            modelBuilder.Entity<EventSnapshotEntry>(entity =>
+            {
+                entity.ToTable("EventSnapshotEntries");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.AggregateId).IsRequired();
+                entity.Property(e => e.Version).IsRequired();
+                entity.Property(e => e.SnapshotData).IsRequired();
+                entity.Property(e => e.CreatedAt).IsRequired().HasColumnType("datetime2");
+
+                entity.HasIndex(e => e.AggregateId);
             });
         }
     }

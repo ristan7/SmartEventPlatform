@@ -1,8 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartEventPlatform.Contracts.Locations;
-using SmartEventPlatform.DirectoryService.Clients;
 using SmartEventPlatform.DirectoryService.Data;
 using SmartEventPlatform.DirectoryService.Models;
 
@@ -13,12 +11,10 @@ namespace SmartEventPlatform.DirectoryService.Controllers
     public class LocationsController : ControllerBase
     {
         private readonly DirectoryDbContext _context;
-        private readonly IEventUsageClient _eventUsageClient;
 
-        public LocationsController(DirectoryDbContext context, IEventUsageClient eventUsageClient)
+        public LocationsController(DirectoryDbContext context)
         {
             _context = context;
-            _eventUsageClient = eventUsageClient;
         }
 
         [HttpGet]
@@ -154,7 +150,11 @@ namespace SmartEventPlatform.DirectoryService.Controllers
                 return NotFound();
             }
 
-            var hasEvents = await _eventUsageClient.ExistsForLocationAsync(id);
+            // DirectoryService ne zove EventService direktno.
+            // Upotreba lokacije se prati lokalno kroz LocationUsageTrackers,
+            // a tabela se ažurira asinhrono porukama iz EventService-a.
+            var hasEvents = await _context.LocationUsageTrackers
+                .AnyAsync(t => t.LocationId == id);
 
             if (hasEvents)
             {

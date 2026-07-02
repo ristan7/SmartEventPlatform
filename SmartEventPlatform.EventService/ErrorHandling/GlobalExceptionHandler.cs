@@ -25,6 +25,7 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
             TaskCanceledException => (StatusCodes.Status504GatewayTimeout, "Downstream request timed out.", "The downstream service did not respond in time."),
             HttpRequestException => (StatusCodes.Status503ServiceUnavailable, "Downstream service is unavailable.", exception.Message),
             InvalidOperationException => (StatusCodes.Status400BadRequest, "Business validation error.", exception.Message),
+            ArgumentException => (StatusCodes.Status400BadRequest, "Validation error.", exception.Message),
             _ => (StatusCodes.Status500InternalServerError, "Unexpected server error.", "An unexpected error occurred.")
         };
 
