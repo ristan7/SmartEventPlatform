@@ -90,16 +90,16 @@ public class RegistrationsController : ControllerBase
         });
     }
 
-    
+
     [HttpPost]
     public async Task<ActionResult<long>> Create(RegistrationCreateUpdateDto dto)
     {
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
-        var participantExists = await _context.Participants
-            .AnyAsync(p => p.ParticipantId == dto.ParticipantId);
-        if (!participantExists)
+        var participant = await _context.Participants
+            .FirstOrDefaultAsync(p => p.ParticipantId == dto.ParticipantId);
+        if (participant == null)
             return BadRequest("Selected participant does not exist.");
 
         _logger.LogInformation("Attempting Request-Reply for EventId={Id}.", dto.EventId);
@@ -125,13 +125,6 @@ public class RegistrationsController : ControllerBase
 
         if (await AlreadyRegistered(dto.EventId, dto.ParticipantId))
             return BadRequest("This participant is already registered for the selected event.");
-
-        // Dohvati podatke o učesniku i događaju za Sagu
-        var participant = await _context.Participants
-            .FirstOrDefaultAsync(p => p.ParticipantId == dto.ParticipantId);
-
-        if (participant == null)
-            return BadRequest("Selected participant does not exist.");
 
         EventDto? eventDetails = null;
         try

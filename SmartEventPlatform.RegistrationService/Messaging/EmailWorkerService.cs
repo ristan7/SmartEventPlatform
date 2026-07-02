@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 
@@ -15,6 +16,7 @@ namespace SmartEventPlatform.RegistrationService.Messaging
 
         private readonly Queue<DateTime> _sentTimestamps = new();
         private readonly SemaphoreSlim _rateLimiterLock = new(1, 1);
+        private readonly ConcurrentDictionary<string, int> _retryCounts = new();
 
         public EmailWorkerService(
             IOptions<EmailRabbitMqOptions> options,
@@ -40,13 +42,34 @@ namespace SmartEventPlatform.RegistrationService.Messaging
             _connection = await factory.CreateConnectionAsync(stoppingToken);
             _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
+            await _channel.ExchangeDeclareAsync(
+                exchange: mq.Exchange, type: ExchangeType.Direct,
+                durable: true, autoDelete: false, cancellationToken: stoppingToken);
+
+            await _channel.ExchangeDeclareAsync(
+                exchange: mq.DeadLetterExchange, type: ExchangeType.Direct,
+                durable: true, autoDelete: false, cancellationToken: stoppingToken);
+
             await _channel.QueueDeclareAsync(
-                queue: mq.Queue,
+                queue: mq.DeadLetterQueue,
                 durable: true, exclusive: false, autoDelete: false,
                 arguments: null, cancellationToken: stoppingToken);
 
+            await _channel.QueueBindAsync(
+                queue: mq.DeadLetterQueue, exchange: mq.DeadLetterExchange,
+                routingKey: mq.RoutingKey, cancellationToken: stoppingToken);
+
+            await _channel.QueueDeclareAsync(
+                queue: mq.Queue, durable: true, exclusive: false, autoDelete: false,
+                arguments: new Dictionary<string, object?> { { "x-dead-letter-exchange", mq.DeadLetterExchange } },
+                cancellationToken: stoppingToken);
+
+            await _channel.QueueBindAsync(
+                queue: mq.Queue, exchange: mq.Exchange,
+                routingKey: mq.RoutingKey, cancellationToken: stoppingToken);
+
             await _channel.BasicQosAsync(
-                prefetchSize: 0, prefetchCount: 1,
+                prefetchSize: 0, prefetchCount: mq.PrefetchCount,
                 global: false, cancellationToken: stoppingToken);
 
             var consumer = new AsyncEventingBasicConsumer(_channel);
@@ -57,8 +80,8 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                 consumer: consumer, cancellationToken: stoppingToken);
 
             _logger.LogInformation(
-                "EmailWorkerService started. Queue='{Queue}', MaxPerMin={Limit}, Folder='{Folder}'.",
-                mq.Queue, mq.MaxEmailsPerMinute, mq.OutboxFolder);
+                "EmailWorkerService started. Queue='{Queue}', DLQ='{DLQ}', MaxRetries={Max}, MaxPerMin={Limit}, Folder='{Folder}'.",
+                mq.Queue, mq.DeadLetterQueue, mq.MaxRetryCount, mq.MaxEmailsPerMinute, mq.OutboxFolder);
 
             try { await Task.Delay(Timeout.Infinite, stoppingToken); }
             catch (OperationCanceledException) { }
@@ -68,6 +91,7 @@ namespace SmartEventPlatform.RegistrationService.Messaging
         {
             if (_channel is null) return;
             var mq = _options.Value;
+            var messageId = ea.BasicProperties.MessageId ?? ea.DeliveryTag.ToString();
 
             try
             {
@@ -84,21 +108,41 @@ namespace SmartEventPlatform.RegistrationService.Messaging
                 await WaitForRateLimitSlotAsync(mq.MaxEmailsPerMinute, cancellationToken);
 
                 await SaveEmailToFileAsync(message, mq.OutboxFolder, cancellationToken);
-                await RecordEmailSentAsync();
+                await RecordEmailSentAsync(cancellationToken);
 
                 _logger.LogInformation(
                     "Email sent. RegistrationId={Id}, Recipient={Email}.",
                     message.RegistrationId, message.ParticipantEmail);
 
+                _retryCounts.TryRemove(messageId, out int _);
                 await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "EmailWorker: error.");
-                if (_channel is not null)
+                var retryCount = _retryCounts.AddOrUpdate(messageId, 1, (_, old) => old + 1);
+
+                _logger.LogError(ex,
+                    "EmailWorker: error processing message. MessageId={Id}, Attempt={N}/{Max}.",
+                    messageId, retryCount, mq.MaxRetryCount);
+
+                if (_channel is null) return;
+
+                if (retryCount >= mq.MaxRetryCount)
+                {
+                    
+                    _retryCounts.TryRemove(messageId, out int _);
+                    _logger.LogWarning(
+                        "EmailWorker: max retries exceeded, dead-lettering. MessageId={Id}.", messageId);
+                    await _channel.BasicNackAsync(
+                        ea.DeliveryTag, multiple: false, requeue: false,
+                        cancellationToken: cancellationToken);
+                }
+                else
+                {
                     await _channel.BasicNackAsync(
                         ea.DeliveryTag, multiple: false, requeue: true,
                         cancellationToken: cancellationToken);
+                }
             }
         }
 
@@ -135,9 +179,9 @@ namespace SmartEventPlatform.RegistrationService.Messaging
             }
         }
 
-        private async Task RecordEmailSentAsync()
+        private async Task RecordEmailSentAsync(CancellationToken cancellationToken)
         {
-            await _rateLimiterLock.WaitAsync();
+            await _rateLimiterLock.WaitAsync(cancellationToken);
             try { _sentTimestamps.Enqueue(DateTime.UtcNow); }
             finally { _rateLimiterLock.Release(); }
         }
@@ -148,20 +192,20 @@ namespace SmartEventPlatform.RegistrationService.Messaging
             var fileName = $"email_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}_reg{msg.RegistrationId}.txt";
             var content = $"""
                 To: {msg.ParticipantEmail}
-                Subject: Potvrda registracije — {msg.EventName}
+                Subject: Registration Confirmation — {msg.EventName}
                 Date: {DateTime.UtcNow:R}
 
-                Postovani/a {msg.ParticipantFirstName} {msg.ParticipantLastName},
+                Dear {msg.ParticipantFirstName} {msg.ParticipantLastName},
 
-                Uspjesno ste se registrovali/e za sljedeci dogadjaj:
+                You have successfully registered for the following event:
 
-                  Naziv: {msg.EventName}
-                  Datum i vrijeme: {msg.EventDateTime:dd.MM.yyyy HH:mm}
-                  ID registracije: {msg.RegistrationId}
-                  Datum registracije: {msg.RegistrationDate:dd.MM.yyyy}
+                  Event: {msg.EventName}
+                  Date and time: {msg.EventDateTime:dd.MM.yyyy HH:mm}
+                  Registration ID: {msg.RegistrationId}
+                  Registration date: {msg.RegistrationDate:dd.MM.yyyy}
 
-                S postovanjem,
-                SmartEvent platforma
+                Best regards,
+                SmartEvent Platform
                 """;
 
             await File.WriteAllTextAsync(Path.Combine(folder, fileName), content, ct);

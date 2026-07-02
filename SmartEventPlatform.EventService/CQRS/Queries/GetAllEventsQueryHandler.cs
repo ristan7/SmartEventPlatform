@@ -1,9 +1,8 @@
-﻿using SmartEventPlatform.EventService.CQRS.ReadModels;
+﻿using SmartEventPlatform.Contracts.Events;
 using SmartEventPlatform.EventService.CQRS.Repositories;
 
 namespace SmartEventPlatform.EventService.CQRS.Queries
 {
-    
     public class GetAllEventsQueryHandler
     {
         private readonly IEventReadRepository _readRepository;
@@ -13,8 +12,7 @@ namespace SmartEventPlatform.EventService.CQRS.Queries
             _readRepository = readRepository;
         }
 
-        
-        public async Task<List<EventReadModel>> Handle(GetAllEventsQuery query)
+        public async Task<List<EventDto>> Handle(GetAllEventsQuery query)
         {
             return await _readRepository.GetAllAsync();
         }

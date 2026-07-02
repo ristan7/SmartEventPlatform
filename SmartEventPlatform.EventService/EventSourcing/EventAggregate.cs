@@ -2,7 +2,7 @@
 
 namespace SmartEventPlatform.EventService.EventSourcing
 {
-    
+
     public abstract class AggregateRoot
     {
         private readonly List<EventDomainEvent> _uncommittedEvents = new();
@@ -11,7 +11,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         public int Version { get; protected set; }
         public bool IsDeleted { get; protected set; }
 
-        
+
         protected void RaiseEvent(EventDomainEvent @event)
         {
             Apply(@event);
@@ -19,10 +19,10 @@ namespace SmartEventPlatform.EventService.EventSourcing
             _uncommittedEvents.Add(@event);
         }
 
-        
+
         protected abstract void Apply(EventDomainEvent @event);
 
-        
+
         public void LoadFromHistory(IEnumerable<EventDomainEvent> history)
         {
             foreach (var @event in history)
@@ -32,7 +32,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
             }
         }
 
-        
+
         public IReadOnlyList<EventDomainEvent> DequeueUncommittedEvents()
         {
             var events = _uncommittedEvents.ToList();
@@ -44,7 +44,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         public abstract void RestoreSnapshot(AggregateSnapshot snapshot);
     }
 
-    
+
     public abstract class AggregateSnapshot
     {
         public long AggregateId { get; set; }
@@ -97,13 +97,13 @@ namespace SmartEventPlatform.EventService.EventSourcing
         {
             // ── VALIDACIJA POSLOVNIH PRAVILA ──────────────────────────────
             if (string.IsNullOrWhiteSpace(eventName))
-                throw new ArgumentException("Naziv događaja ne smije biti prazan.");
+                throw new ArgumentException("Event name must not be empty.");
             if (durationInMinutes <= 0)
-                throw new ArgumentException("Trajanje mora biti pozitivan broj minuta.");
+                throw new ArgumentException("Duration must be a positive number of minutes.");
             if (registrationFee < 0)
-                throw new ArgumentException("Cijena kotizacije ne može biti negativna.");
+                throw new ArgumentException("Registration fee cannot be negative.");
             if (eventDateTime <= DateTime.UtcNow)
-                throw new ArgumentException("Datum događaja mora biti u budućnosti.");
+                throw new ArgumentException("Event date must be in the future.");
 
             var aggregate = new EventAggregate();
             aggregate.RaiseEvent(new EventCreatedDomainEvent
@@ -131,9 +131,9 @@ namespace SmartEventPlatform.EventService.EventSourcing
         {
             EnsureNotCancelled();
             if (string.IsNullOrWhiteSpace(newName))
-                throw new ArgumentException("Novi naziv ne smije biti prazan.");
+                throw new ArgumentException("New name must not be empty.");
             if (newName == EventName)
-                throw new InvalidOperationException("Novi naziv je isti kao trenutni.");
+                throw new InvalidOperationException("New name is the same as the current one.");
 
             RaiseEvent(new EventRenamedDomainEvent
             {
@@ -147,9 +147,9 @@ namespace SmartEventPlatform.EventService.EventSourcing
         {
             EnsureNotCancelled();
             if (newDateTime <= DateTime.UtcNow)
-                throw new ArgumentException("Novi datum mora biti u budućnosti.");
+                throw new ArgumentException("New date must be in the future.");
             if (newDurationInMinutes <= 0)
-                throw new ArgumentException("Trajanje mora biti pozitivan broj minuta.");
+                throw new ArgumentException("Duration must be a positive number of minutes.");
 
             RaiseEvent(new EventRescheduledDomainEvent
             {
@@ -165,7 +165,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         {
             EnsureNotCancelled();
             if (newFee < 0)
-                throw new ArgumentException("Cijena kotizacije ne može biti negativna.");
+                throw new ArgumentException("Registration fee cannot be negative.");
 
             RaiseEvent(new EventFeeChangedDomainEvent
             {
@@ -179,9 +179,9 @@ namespace SmartEventPlatform.EventService.EventSourcing
         {
             EnsureNotCancelled();
             if (newLocationId <= 0)
-                throw new ArgumentException("Neispravni ID lokacije.");
+                throw new ArgumentException("Invalid location ID.");
             if (string.IsNullOrWhiteSpace(newLocationName))
-                throw new ArgumentException("Naziv lokacije ne smije biti prazan.");
+                throw new ArgumentException("Location name must not be empty.");
 
             RaiseEvent(new EventLocationChangedDomainEvent
             {
@@ -197,7 +197,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         {
             EnsureNotCancelled();
             if (string.IsNullOrWhiteSpace(reason))
-                throw new ArgumentException("Razlog otkazivanja mora biti naveden.");
+                throw new ArgumentException("Cancellation reason must be provided.");
 
             RaiseEvent(new EventCancelledDomainEvent
             {
@@ -231,7 +231,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         public override void RestoreSnapshot(AggregateSnapshot snapshot)
         {
             if (snapshot is not EventSnapshot s)
-                throw new InvalidOperationException($"Neispravan tip snapshot-a: {snapshot.GetType().Name}");
+                throw new InvalidOperationException($"Invalid snapshot type: {snapshot.GetType().Name}");
 
             Id = s.AggregateId;
             Version = s.Version;
@@ -293,7 +293,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Nepoznat tip domenskog događaja: {@event.GetType().Name}");
+                    throw new InvalidOperationException($"Unknown domain event type: {@event.GetType().Name}");
             }
         }
 
@@ -304,7 +304,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         private void EnsureNotCancelled()
         {
             if (IsCancelled)
-                throw new InvalidOperationException("Otkazan događaj se više ne može mijenjati.");
+                throw new InvalidOperationException("A cancelled event can no longer be modified.");
         }
     }
 
