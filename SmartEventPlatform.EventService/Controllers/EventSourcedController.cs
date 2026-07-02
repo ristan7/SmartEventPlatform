@@ -30,8 +30,6 @@ namespace SmartEventPlatform.EventService.Controllers
             _logger = logger;
         }
 
-        // ── POST /api/eventsourced ────────────────────────────────────────
-        // Kreira novi stručni događaj (identično CreateAccount() iz primjera)
 
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateEventSourcedRequest req, CancellationToken ct)
@@ -54,9 +52,7 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(ToResponse(aggregate));
         }
 
-        // ── GET /api/eventsourced/{id} ────────────────────────────────────
-        // Rekonstruiše trenutno stanje agregata iz historije događaja
-
+        
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetById(long id, CancellationToken ct)
         {
@@ -67,8 +63,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(ToResponse(aggregate));
         }
 
-        // ── GET /api/eventsourced/{id}/history ───────────────────────────
-        // Vraća kompletnu historiju domenskih događaja (promjena) za dati agregat
 
         [HttpGet("{id:long}/history")]
         public async Task<IActionResult> GetHistory(long id, CancellationToken ct)
@@ -81,8 +75,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(history);
         }
 
-        // ── PUT /api/eventsourced/{id}/rename ────────────────────────────
-        // Promijeni naziv stručnog događaja
 
         [HttpPut("{id:long}/rename")]
         public async Task<IActionResult> Rename(long id, [FromBody] RenameEventRequest req, CancellationToken ct)
@@ -178,9 +170,6 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(new { Message = $"Snapshot kreiran za verziju {aggregate.Version}.", Version = aggregate.Version });
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  HELPER — mapiraj agregat u response DTO
-        // ─────────────────────────────────────────────────────────────────
 
         private static EventAggregateResponse ToResponse(EventAggregate a) => new()
         {
@@ -199,7 +188,7 @@ namespace SmartEventPlatform.EventService.Controllers
         };
     }
 
-    // ── Request / Response DTO-ovi ────────────────────────────────────────
+    
 
     public record CreateEventSourcedRequest(
         long EventId,

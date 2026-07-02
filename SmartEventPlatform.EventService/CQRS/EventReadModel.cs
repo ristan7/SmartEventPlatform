@@ -1,9 +1,6 @@
 ﻿namespace SmartEventPlatform.EventService.CQRS.ReadModels
 {
-    /// <summary>
-    /// Read-only model koji se koristi isključivo za upite (Query strana CQRS-a).
-    /// Ovaj model NIKADA ne smije biti korišten za izmjenu stanja sistema.
-    /// </summary>
+    
     public class EventReadModel
     {
         public long EventId { get; set; }

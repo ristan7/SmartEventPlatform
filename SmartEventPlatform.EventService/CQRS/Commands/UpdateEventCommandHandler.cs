@@ -25,10 +25,7 @@ namespace SmartEventPlatform.EventService.CQRS.Commands
             _logger = logger;
         }
 
-        /// <summary>
-        /// Vraća false ako event nije pronađen.
-        /// Baca InvalidOperationException ako validacija ne prođe.
-        /// </summary>
+        
         public async Task<bool> Handle(UpdateEventCommand command)
         {
             // Učitavamo tracked entitet za write (ne koristimo read repozitorij!)

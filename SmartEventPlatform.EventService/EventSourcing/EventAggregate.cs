@@ -2,11 +2,7 @@
 
 namespace SmartEventPlatform.EventService.EventSourcing
 {
-    /// <summary>
-    /// Bazna klasa za sve agregate koji koriste Event Sourcing.
-    /// Identična ulozi AggregateRoot iz primjera — drži listu nepersistiranih događaja
-    /// i rekonstruiše stanje primjenom historije događaja.
-    /// </summary>
+    
     public abstract class AggregateRoot
     {
         private readonly List<EventDomainEvent> _uncommittedEvents = new();
@@ -15,12 +11,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         public int Version { get; protected set; }
         public bool IsDeleted { get; protected set; }
 
-        /// <summary>
-        /// Primjeni novi domenski događaj na agregat:
-        /// 1. Pozovi Apply() da promijeniš stanje
-        /// 2. Uvećaj Version
-        /// 3. Dodaj u listu nepersistiranih događaja
-        /// </summary>
+        
         protected void RaiseEvent(EventDomainEvent @event)
         {
             Apply(@event);
@@ -28,16 +19,10 @@ namespace SmartEventPlatform.EventService.EventSourcing
             _uncommittedEvents.Add(@event);
         }
 
-        /// <summary>
-        /// Svaki konkretan agregat definišeKako primjenjuje svaki tip događaja.
-        /// Ovo je jedino mjesto gdje se stanje direktno mijenja.
-        /// </summary>
+        
         protected abstract void Apply(EventDomainEvent @event);
 
-        /// <summary>
-        /// Rekonstruiše stanje agregata od historije sačuvanih događaja.
-        /// Identično LoadFromHistory() iz primjera.
-        /// </summary>
+        
         public void LoadFromHistory(IEnumerable<EventDomainEvent> history)
         {
             foreach (var @event in history)
@@ -47,7 +32,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
             }
         }
 
-        /// <summary>Vraća i briše listu nepersistiranih događaja. Poziva se pri snimanju.</summary>
+        
         public IReadOnlyList<EventDomainEvent> DequeueUncommittedEvents()
         {
             var events = _uncommittedEvents.ToList();
@@ -59,10 +44,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         public abstract void RestoreSnapshot(AggregateSnapshot snapshot);
     }
 
-    /// <summary>
-    /// Bazna klasa za snapshot — identična AggregateSnapshot iz primjera.
-    /// Čuva stanje agregata u određenom trenutku radi efikasnog učitavanja.
-    /// </summary>
+    
     public abstract class AggregateSnapshot
     {
         public long AggregateId { get; set; }
@@ -82,7 +64,6 @@ namespace SmartEventPlatform.EventService.EventSourcing
     /// </summary>
     public class EventAggregate : AggregateRoot
     {
-        // ── Stanje agregata (ne mijenjati direktno izvan Apply!) ──────────
         public string EventName { get; private set; } = string.Empty;
         public string Agenda { get; private set; } = string.Empty;
         public DateTime EventDateTime { get; private set; }

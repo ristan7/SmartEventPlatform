@@ -14,7 +14,6 @@ namespace SmartEventPlatform.EventService.CQRS.Queries
 
         public async Task<List<EventReadModel>> Handle(GetUpcomingEventsQuery query)
         {
-            // Ako FromDate nije zadan, podrazumijevano je danas u ponoć
             var fromDate = query.FromDate ?? DateTime.UtcNow.Date;
 
             return await _readRepository.GetUpcomingAsync(fromDate);

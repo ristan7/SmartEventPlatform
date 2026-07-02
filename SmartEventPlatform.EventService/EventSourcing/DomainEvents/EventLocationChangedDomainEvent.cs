@@ -1,8 +1,6 @@
 ﻿namespace SmartEventPlatform.EventService.EventSourcing.DomainEvents
 {
-    /// <summary>
-    /// Domenski događaj: Lokacija stručnog događaja je promijenjena.
-    /// </summary>
+    
     public class EventLocationChangedDomainEvent : EventDomainEvent
     {
         public long OldLocationId { get; set; }

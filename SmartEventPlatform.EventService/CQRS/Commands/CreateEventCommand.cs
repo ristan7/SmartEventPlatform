@@ -1,10 +1,6 @@
 ﻿namespace SmartEventPlatform.EventService.CQRS.Commands
 {
-    /// <summary>
-    /// Komanda za kreiranje novog događaja.
-    /// Obična C# klasa — bez gotovih biblioteka.
-    /// Command operacije vraćaju samo rezultat izvršavanja (ID), nikad puni domain objekat.
-    /// </summary>
+    
     public class CreateEventCommand
     {
         public string EventName { get; set; } = string.Empty;

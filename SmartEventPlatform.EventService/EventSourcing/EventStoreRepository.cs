@@ -21,8 +21,7 @@ namespace SmartEventPlatform.EventService.EventSourcing
         private readonly EventDbContext _db;
         private readonly ILogger<EventStoreRepository> _logger;
 
-        // Mapiranje imena tipa domenskog događaja → konkretni C# tip
-        // Neophodan jer JSON deserijalizacija zahtijeva konkretan tip
+        
         private static readonly Dictionary<string, Type> _knownEventTypes = new()
         {
             [nameof(EventCreatedDomainEvent)] = typeof(EventCreatedDomainEvent),

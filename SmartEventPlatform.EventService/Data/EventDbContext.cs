@@ -20,20 +20,9 @@ namespace SmartEventPlatform.EventService.Data
         public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
         public DbSet<EventRegistrationTracker> EventRegistrationTrackers { get; set; }
 
-        // Saga: privremene rezervacije mjesta dok Saga nije završena
         public DbSet<SagaSpotReservation> SagaSpotReservations { get; set; }
 
-        // ── EVENT SOURCING tabele ──────────────────────────────────────────
-        /// <summary>
-        /// Tabela koja čuva sve domenskie događaje hronološkim redom.
-        /// Ekvivalent InMemoryDatabase._events iz primjera.
-        /// </summary>
         public DbSet<EventStoreEntry> EventStoreEntries { get; set; }
-
-        /// <summary>
-        /// Tabela koja čuva snapshote agregata za efikasno učitavanje.
-        /// Ekvivalent InMemoryDatabase._snapshots iz primjera.
-        /// </summary>
         public DbSet<EventSnapshotEntry> EventSnapshotEntries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -120,7 +109,6 @@ namespace SmartEventPlatform.EventService.Data
                       .IsRequired();
             });
 
-            // Saga: konfiguracija SagaSpotReservations tabele
             modelBuilder.Entity<SagaSpotReservation>(entity =>
             {
                 entity.ToTable("SagaSpotReservations");
@@ -130,12 +118,10 @@ namespace SmartEventPlatform.EventService.Data
                 entity.Property(e => e.EventId).IsRequired();
                 entity.Property(e => e.CreatedAt).IsRequired();
 
-                // SagaId mora biti jedinstven - jedna Saga = jedna rezervacija
                 entity.HasIndex(e => e.SagaId).IsUnique();
                 entity.HasIndex(e => e.EventId);
             });
 
-            // ── EVENT SOURCING konfiguracija ──────────────────────────────
 
             modelBuilder.Entity<EventStoreEntry>(entity =>
             {

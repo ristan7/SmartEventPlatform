@@ -11,18 +11,15 @@ namespace SmartEventPlatform.EventService.Controllers
     [ApiController]
     public class EventsController : ControllerBase
     {
-        // ── CQRS Query handleri ──────────────────────────────────────────────
         private readonly GetAllEventsQueryHandler _getAllHandler;
         private readonly GetEventByIdQueryHandler _getByIdHandler;
         private readonly GetUpcomingEventsQueryHandler _getUpcomingHandler;
 
-        // ── CQRS Command handleri ────────────────────────────────────────────
         private readonly CreateEventCommandHandler _createHandler;
         private readonly UpdateEventCommandHandler _updateHandler;
         private readonly DeleteEventCommandHandler _deleteHandler;
 
-        // ── Direktni DbContext ostaje samo za pomoćne endpoint-e koji nisu
-        //    user-facing CRUD operacije (exists-for-location, registration-info…)
+        
         private readonly EventDbContext _context;
 
         public EventsController(
@@ -43,11 +40,7 @@ namespace SmartEventPlatform.EventService.Controllers
             _context = context;
         }
 
-        // ══════════════════════════════════════════════════════════════
-        //  QUERY endpoint-i — čitanje, CQRS Query strana
-        // ══════════════════════════════════════════════════════════════
-
-        /// <summary>Vraća sve događaje. Poziva GetAllEventsQueryHandler.</summary>
+        
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EventDto>>> GetAll()
         {
@@ -73,7 +66,7 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(dtos);
         }
 
-        /// <summary>Vraća jedan događaj po ID-u. Poziva GetEventByIdQueryHandler.</summary>
+        
         [HttpGet("{id:long}")]
         public async Task<ActionResult<EventDto>> GetById(long id)
         {
@@ -100,11 +93,7 @@ namespace SmartEventPlatform.EventService.Controllers
             });
         }
 
-        /// <summary>
-        /// Vraća predstojeće događaje filtrirane po datumu. Poziva GetUpcomingEventsQueryHandler.
-        /// Primjer: GET /api/events/upcoming?fromDate=2026-07-01
-        /// Bez fromDate parametra vraća od danas.
-        /// </summary>
+        
         [HttpGet("upcoming")]
         public async Task<ActionResult<IEnumerable<EventDto>>> GetUpcoming([FromQuery] DateTime? fromDate)
         {
@@ -131,11 +120,7 @@ namespace SmartEventPlatform.EventService.Controllers
             return Ok(dtos);
         }
 
-        // ══════════════════════════════════════════════════════════════
-        //  COMMAND endpoint-i — izmjena stanja, CQRS Command strana
-        // ══════════════════════════════════════════════════════════════
-
-        /// <summary>Kreira novi događaj. Poziva CreateEventCommandHandler.</summary>
+        
         [HttpPost]
         public async Task<ActionResult<long>> Create(EventCreateUpdateDto dto)
         {
@@ -163,7 +148,6 @@ namespace SmartEventPlatform.EventService.Controllers
             }
         }
 
-        /// <summary>Ažurira događaj. Poziva UpdateEventCommandHandler.</summary>
         [HttpPut("{id:long}")]
         public async Task<IActionResult> Update(long id, EventCreateUpdateDto dto)
         {
@@ -195,7 +179,6 @@ namespace SmartEventPlatform.EventService.Controllers
             }
         }
 
-        /// <summary>Briše događaj. Poziva DeleteEventCommandHandler.</summary>
         [HttpDelete("{id:long}")]
         public async Task<IActionResult> Delete(long id)
         {
@@ -214,10 +197,6 @@ namespace SmartEventPlatform.EventService.Controllers
             }
         }
 
-        // ══════════════════════════════════════════════════════════════
-        //  Pomoćni endpoint-i za inter-service komunikaciju
-        //  Ostaju s direktnim DbContext-om — nisu user CRUD operacije.
-        // ══════════════════════════════════════════════════════════════
 
         [HttpGet("exists-for-location/{locationId:long}")]
         public async Task<ActionResult<bool>> ExistsForLocation(long locationId)

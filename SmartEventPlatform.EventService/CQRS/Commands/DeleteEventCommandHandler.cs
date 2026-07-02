@@ -21,10 +21,6 @@ namespace SmartEventPlatform.EventService.CQRS.Commands
             _logger = logger;
         }
 
-        /// <summary>
-        /// Vraća false ako event nije pronađen.
-        /// Baca InvalidOperationException ako brisanje nije dozvoljeno.
-        /// </summary>
         public async Task<bool> Handle(DeleteEventCommand command)
         {
             var existingEvent = await _writeRepository.GetByIdForWriteAsync(command.EventId);
